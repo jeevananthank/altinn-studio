@@ -23,7 +23,7 @@
     "allowJs": true,
     "jsx": "react",
     "moduleResolution": "node",
-    "rootDir": "./../",
+    "rootDir": "./../..",
     "strictNullChecks": false,
     "esModuleInterop": true
   },

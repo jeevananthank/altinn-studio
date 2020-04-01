@@ -1,6 +1,7 @@
 const HtmlWebPackPlugin = require('html-webpack-plugin');
 const MiniCssExtractPlugin = require('mini-css-extract-plugin');
 const CheckerPlugin = require('awesome-typescript-loader').CheckerPlugin;
+// const PnPWebpackPlugin = require('pnp-webpack-plugin');
 const path = require('path');
 
 module.exports = {
@@ -37,8 +38,16 @@ module.exports = {
     alias: {
       // CUSTOM PACKAGES
       'altinn-shared': path.resolve(__dirname, './../shared/src'),
-    }
+    },
+    // plugins: [
+    //   PnPWebpackPlugin
+    // ]
   },
+  // resolveLoader: {
+  //   plugins: [
+  //     PnPWebpackPlugin.moduleLoader(module)
+  //   ]
+  // },
   performance: {
     hints: 'warning',
   },
@@ -111,6 +120,7 @@ module.exports = {
   ],
   devServer: {
     historyApiFallback: true,
-    disableHostCheck: true
+    disableHostCheck: true,
+    contentBase: path.join(__dirname, '')
   },
 }
