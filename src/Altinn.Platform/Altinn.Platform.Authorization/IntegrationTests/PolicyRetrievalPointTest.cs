@@ -6,43 +6,42 @@ using System.Threading.Tasks;
 using Altinn.Authorization.ABAC.Constants;
 using Altinn.Authorization.ABAC.Interface;
 using Altinn.Authorization.ABAC.Xacml;
+
 using Altinn.Platform.Authorization.Configuration;
 using Altinn.Platform.Authorization.IntegrationTests.Fixtures;
 using Altinn.Platform.Authorization.IntegrationTests.MockServices;
 using Altinn.Platform.Authorization.IntegrationTests.Util;
-using Altinn.Platform.Authorization.Repositories.Interface;
+
 using Altinn.Platform.Authorization.Services.Implementation;
+
+using Microsoft.Extensions.Caching.Memory;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
-using Moq;
 
 using Xunit;
 
 namespace Altinn.Platform.Authorization.IntegrationTests
 {
     [Collection("Our Test Collection #1")]
-    public class PolicyRetrievalPointTest : IClassFixture<PolicyRetrivevalPointFixture>
+    public class PolicyRetrievalPointTest : IClassFixture<PolicyRetrievalPointFixture>
     {
-        Mock<IOptions<AzureStorageConfiguration>> _storageConfigMock;
         private const string ORG = "ttd";
         private const string APP = "repository-test-app";
-        private readonly PolicyRetrivevalPointFixture _fixture;
-        private readonly IPolicyRepository _pr;
+
         private readonly IPolicyRetrievalPoint _prp;
 
-        public PolicyRetrievalPointTest(PolicyRetrivevalPointFixture fixture)
+        public PolicyRetrievalPointTest()
         {
-            _fixture = fixture;
-            _storageConfigMock = new Mock<IOptions<AzureStorageConfiguration>>();
-            _storageConfigMock.Setup(s => s.Value).Returns(new AzureStorageConfiguration()
-            {
-                AccountName = "devstoreaccount1",
-                AccountKey = "Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==",
-                MetadataContainer = "metadata",
-                BlobEndpoint = "http://127.0.0.1:10000/devstoreaccount1"
-            });
+            ServiceCollection services = new ServiceCollection();
+            services.AddMemoryCache();
+            ServiceProvider serviceProvider = services.BuildServiceProvider();
 
-            _pr = new PolicyRepository();
-            _prp = new Services.Implementation.PolicyRetrievalPoint(_pr);
+            IMemoryCache memoryCache = serviceProvider.GetService<IMemoryCache>();
+
+            _prp = new PolicyRetrievalPoint(
+                new PolicyRepositoryMock(),
+                memoryCache,
+                Options.Create(new GeneralSettings { PolicyCacheTimeout = 1 }));
         }
 
         /// <summary>
@@ -119,7 +118,7 @@ namespace Altinn.Platform.Authorization.IntegrationTests
         public async Task WritePolicy_TC02()
         {
             // Act & Assert
-            await Assert.ThrowsAsync<ArgumentException>(() => _prp.WritePolicyAsync("", "app", new MemoryStream()));
+            await Assert.ThrowsAsync<ArgumentException>(() => _prp.WritePolicyAsync(string.Empty, "app", new MemoryStream()));
         }
 
         /// <summary>
@@ -130,7 +129,7 @@ namespace Altinn.Platform.Authorization.IntegrationTests
         public async Task WritePolicy_TC03()
         {
             // Act & Assert
-            await Assert.ThrowsAsync<ArgumentException>(() => _prp.WritePolicyAsync("org", "", new MemoryStream()));
+            await Assert.ThrowsAsync<ArgumentException>(() => _prp.WritePolicyAsync("org", string.Empty, new MemoryStream()));
         }
 
         /// <summary>
@@ -167,6 +166,7 @@ namespace Altinn.Platform.Authorization.IntegrationTests
             {
                 xacmlAttributeApp.AttributeValues.Add(new XacmlAttributeValue(new Uri("urn:altinn:app"), "dummy-app"));
             }
+
             xacmlContext2.Attributes.Add(xacmlAttributeApp);
 
             xacmlContexts.Add(xacmlContext2);
@@ -175,4 +175,3 @@ namespace Altinn.Platform.Authorization.IntegrationTests
         }
     }
 }
-

@@ -1,15 +1,17 @@
 import { IAltinnWindow } from 'src/types';
 
 const altinnWindow = window as Window as IAltinnWindow;
-const { org, app, reportee } = altinnWindow;
+const {
+  org, app, reportee,
+} = altinnWindow;
 const origin = window.location.origin;
 
 export const appPath = `${origin}/${org}/${app}`;
 export const verifySubscriptionUrl = `${origin}/api/v1/${org}/${app}/verifySubscription?partyId=${reportee}`;
 export const languageUrl = `${appPath}/api/Language/GetLanguageAsJSON`;
 export const profileApiUrl = `${appPath}/api/v1/profile/user`;
+export const oldTextResourcesUrl = `${origin}/${org}/${app}/api/textresources`;
 export const applicationMetadataApiUrl = `${appPath}/api/v1/applicationmetadata`;
-export const textResourcesUrl = `${origin}/${org}/${app}/api/textresources`;
 export const updateCookieUrl: (partyId: string) => string = (partyId: string) => `
   ${appPath}/api/v1/parties/${partyId}
 `;
@@ -25,6 +27,10 @@ export const instancesControllerUrl: string = `${appPath}/instances`;
 export const partySelectionUrl: string = `${appPath}/#/partyselection`;
 export const refreshJwtTokenUrl: string = `${appPath}/api/authentication/keepAlive`;
 export const reactErrorPage: string = `${appPath}/#/error`;
+
+export function textResourcesUrl(language: string) {
+  return `${origin}/${org}/${app}/api/v1/texts/${language}`;
+}
 
 export function fileUploadUrl(attachmentType: string, attachmentName: string) {
   return `${appPath}/instances/` +
@@ -59,7 +65,7 @@ export function getValidationUrl(instanceId: string) {
 }
 
 export function getCompleteProcessUrl() {
- return `${appPath}/instances/${altinnWindow.instanceId}/process/next`;
+  return `${appPath}/instances/${altinnWindow.instanceId}/process/next`;
 }
 
 export function getUpgradeAuthLevelUrl(reqAuthLevel: string) {
@@ -75,13 +81,15 @@ export const getEnvironmentLoginUrl: () => string = () => {
   if (domainSplitted.length === 5) {
     return `https://platform.${domainSplitted[2]}.${domainSplitted[3]}.${domainSplitted[4]}` +
       `/authentication/api/v1/authentication?goto=${encodedGoToUrl}`;
-  } else if (domainSplitted.length === 4) {
-    return `https://platform${domainSplitted[2]}.${domainSplitted[3]}` +
-      `/authentication/api/v1/authentication?goto=${encodedGoToUrl}`;
-  } else {
-    // TODO: what if altinn3?
-    throw new Error('Unknown domain');
   }
+
+  if (domainSplitted.length === 4) {
+    return `https://platform.${domainSplitted[2]}.${domainSplitted[3]}` +
+      `/authentication/api/v1/authentication?goto=${encodedGoToUrl}`;
+  }
+
+  // TODO: what if altinn3?
+  throw new Error('Unknown domain');
 };
 
 export const getHostname: () => string = () => {
@@ -89,16 +97,25 @@ export const getHostname: () => string = () => {
   const domainSplitted: string[] = window.location.host.split('.');
   if (domainSplitted.length === 5) {
     return `${domainSplitted[2]}.${domainSplitted[3]}.${domainSplitted[4]}`;
-  } else if (domainSplitted.length === 4) {
+  }
+  if (domainSplitted.length === 4) {
     return `${domainSplitted[2]}.${domainSplitted[3]}`;
-  } else if (domainSplitted.length === 2 && domainSplitted[0] === "altinn3local") {
+  }
+  if (domainSplitted.length === 2 && domainSplitted[0] === 'altinn3local') {
     // Local test
     return window.location.host;
-  } else {
-    throw new Error('Unknown domain');
   }
+  throw new Error('Unknown domain');
 };
 
-export const redirectToUpgrade = (reqAuthLevel: string) =>{
+export const redirectToUpgrade = (reqAuthLevel: string) => {
   window.location.href = getUpgradeAuthLevelUrl(reqAuthLevel);
+};
+
+export const getOptionsUrl = (optionsId: string) => {
+  return `${appPath}/api/options/${optionsId}`;
+};
+
+export function getJsonSchemaUrl() {
+  return `${window.location.origin}/${org}/${app}/api/jsonschema/`;
 }

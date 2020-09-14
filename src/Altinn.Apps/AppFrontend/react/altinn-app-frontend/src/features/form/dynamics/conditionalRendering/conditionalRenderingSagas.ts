@@ -1,9 +1,7 @@
 import { SagaIterator } from 'redux-saga';
 import { all, call, select, take, takeLatest } from 'redux-saga/effects';
-import { IRuntimeState } from '../../../../types';
-import { IValidations, IUiConfig } from '../../../../types/global';
+import { IRuntimeState, IValidations, IUiConfig } from 'src/types';
 import { runConditionalRenderingRules } from '../../../../utils/conditionalRendering';
-import * as FormConfigActionTypes from '../../config/fetch/fetchFormConfigActionTypes';
 import * as FormDataActionTypes from '../../data/formDataActionTypes';
 import { IFormData } from '../../data/formDataReducer';
 import { ILayout } from '../../layout';
@@ -29,8 +27,8 @@ function* checkIfConditionalRulesShouldRunSaga(): SagaIterator {
     const formValidations: IValidations = yield select(FormValidationSelector);
     const uiConfig: IUiConfig = yield select(UiConfigSelector);
     const componentsToHide: string[] = runConditionalRenderingRules(
-        conditionalRenderingState,
-        formData,
+      conditionalRenderingState,
+      formData,
     );
 
     if (shouldHidddenFieldsUpdate(uiConfig.hiddenFields, componentsToHide)) {
@@ -43,7 +41,6 @@ function* checkIfConditionalRulesShouldRunSaga(): SagaIterator {
         }
       });
     }
-    
   } catch (err) {
     yield call(console.error, err);
   }
@@ -56,16 +53,14 @@ export function* watchCheckIfConditionalRulesShouldRunSaga(): SagaIterator {
 export function* waitForAppSetupBeforeRunningConditionalRulesSaga(): SagaIterator {
   yield all([
     take(FormLayoutActionTypes.FETCH_FORM_LAYOUT_FULFILLED),
-    take(FormConfigActionTypes.FETCH_FORM_CONFIG_FULFILLED),
     take(FormDataActionTypes.FETCH_FORM_DATA_FULFILLED),
     take(FormDynamicsActionTypes.FETCH_SERVICE_CONFIG_FULFILLED),
-    take(RulesActionTypes.FETCH_RULE_MODEL_FULFILLED)
+    take(RulesActionTypes.FETCH_RULE_MODEL_FULFILLED),
   ]);
   yield call(checkIfConditionalRulesShouldRunSaga);
 }
 
 function shouldHidddenFieldsUpdate(currentList: string[], newList: string[]): boolean {
-  
   if (!currentList || currentList.length !== newList.length) {
     return true;
   }
@@ -74,7 +69,7 @@ function shouldHidddenFieldsUpdate(currentList: string[], newList: string[]): bo
     return true;
   }
 
-  if (currentList.find(element => !newList.includes(element))) {
+  if (currentList.find((element) => !newList.includes(element))) {
     return true;
   }
 

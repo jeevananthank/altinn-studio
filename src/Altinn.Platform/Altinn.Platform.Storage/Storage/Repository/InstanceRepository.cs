@@ -21,7 +21,7 @@ namespace Altinn.Platform.Storage.Repository
     /// Repository operations for application instances.
     /// </summary>
     public class InstanceRepository : IInstanceRepository
-    {        
+    {
         private const string CollectionId = "instances";
         private const string PartitionKey = "/instanceOwner/partyId";
 
@@ -59,7 +59,7 @@ namespace Altinn.Platform.Storage.Repository
                 databaseUri,
                 documentCollection).GetAwaiter().GetResult();
 
-            _client.OpenAsync();                    
+            _client.OpenAsync();
         }
 
         /// <inheritdoc/>
@@ -209,8 +209,7 @@ namespace Altinn.Platform.Storage.Repository
                             break;
 
                         case "process.currentTask":
-                            string currentTaskId = queryValue;
-                            queryBuilder = queryBuilder.Where(i => i.Process.CurrentTask.ElementId == currentTaskId);
+                            queryBuilder = queryBuilder.Where(i => i.Process.CurrentTask.ElementId == queryValue);
                             break;
 
                         case "process.isComplete":
@@ -228,14 +227,6 @@ namespace Altinn.Platform.Storage.Repository
 
                         case "process.ended":
                             queryBuilder = QueryBuilderForEnded(queryBuilder, queryValue);
-                            break;
-
-                        case "appOwner.labels":
-                            foreach (string label in queryValue.Split(","))
-                            {
-                                queryBuilder = queryBuilder.Where(i => i.AppOwner.Labels.Contains(label));
-                            }
-
                             break;
 
                         default:
@@ -542,8 +533,13 @@ namespace Altinn.Platform.Storage.Repository
         }
 
         /// <summary>
-        /// Converts the instanceId (id) of the instance from {instanceGuid} to {instanceOwnerPartyId}/{instanceGuid} to be used outside cosmos.
+        /// Prepares the instance for exposure to end users and app owners.
         /// </summary>
+        /// <remarks>
+        /// - Converts the instanceId (id) of the instance from {instanceGuid} to {instanceOwnerPartyId}/{instanceGuid} to be used outside cosmos.
+        /// - Retrieves all data elements from data repository
+        /// - Sets correct LastChanged/LastChangedBy by comparing instance and data elements
+        /// </remarks>
         /// <param name="instance">the instance to preprocess</param>
         private async Task PostProcess(Instance instance)
         {
@@ -552,10 +548,14 @@ namespace Altinn.Platform.Storage.Repository
 
             instance.Id = instanceId;
             instance.Data = await _dataRepository.ReadAll(instanceGuid);
+
+            (string lastChangedBy, DateTime? lastChanged) = InstanceHelper.FindLastChanged(instance);
+            instance.LastChanged = lastChanged;
+            instance.LastChangedBy = lastChangedBy;
         }
 
         /// <summary>
-        /// Preprosesses a list of instances.
+        /// Preprocess a list of instances.
         /// </summary>
         /// <param name="instances">the list of instances</param>
         private async Task PostProcess(List<Instance> instances)
@@ -563,7 +563,7 @@ namespace Altinn.Platform.Storage.Repository
             foreach (Instance item in instances)
             {
                 await PostProcess(item);
-            }            
+            }
         }
 
         /// <summary>

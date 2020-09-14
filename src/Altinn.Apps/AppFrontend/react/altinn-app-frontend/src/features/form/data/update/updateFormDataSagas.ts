@@ -1,8 +1,6 @@
 import { SagaIterator } from 'redux-saga';
 import { actionChannel, call, select, take } from 'redux-saga/effects';
-
-import { IRuntimeState } from '../../../../types';
-import { IValidationResult } from '../../../../types/global';
+import { IRuntimeState, IValidationResult } from 'src/types';
 import { getLayoutComponentById } from '../../../../utils/layout';
 import { createValidator, validateComponentFormData } from '../../../../utils/validation';
 import FormDynamicActions from '../../dynamics/formDynamicsActions';
@@ -12,6 +10,7 @@ import * as FormDataActionTypes from '../formDataActionTypes';
 import { IUpdateFormData } from './updateFormDataActions';
 import FormLayoutActions from '../../layout/formLayoutActions';
 import { getDataTaskDataTypeId } from '../../../../utils/appMetadata';
+import { getKeyWithoutIndex } from '../../../../utils/databindings';
 
 function* updateFormDataSaga({
   field,
@@ -27,14 +26,17 @@ function* updateFormDataSaga({
     const schema = state.formDataModel.schemas[currentDataTaskDataTypeId];
     const validator = createValidator(schema);
     const component = getLayoutComponentById(componentId, state.formLayout.layout);
+    const fieldWithoutIndex = getKeyWithoutIndex(field);
+
     const focus = state.formLayout.uiConfig.focus;
     const validationResult: IValidationResult = validateComponentFormData(
       data,
-      field,
+      fieldWithoutIndex,
       component,
       state.language.language,
       validator,
       state.formValidations.validations[componentId],
+      componentId !== component.id ? componentId : null,
     );
 
     const componentValidations = validationResult?.validations[componentId];

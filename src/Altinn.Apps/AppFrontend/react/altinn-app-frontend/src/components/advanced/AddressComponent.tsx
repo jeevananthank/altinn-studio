@@ -1,15 +1,15 @@
+/* eslint-disable import/order */
 /* eslint-disable no-shadow */
 /* eslint-disable consistent-return */
 /* eslint-disable react/prop-types */
 import axios from 'axios';
 import * as React from 'react';
 import { getLanguageFromKey, get } from 'altinn-shared/utils';
+import { IComponentValidations } from 'src/types';
 import { IDataModelBindings, ITextResourceBindings } from '../../features/form/layout';
 import '../../styles/AddressComponent.css';
 import '../../styles/shared.css';
-import { IComponentValidations } from '../../types/global';
 import { renderValidationMessagesForComponent } from '../../utils/render';
-
 import classNames = require('classnames');
 
 export interface IAddressComponentProps {
@@ -98,7 +98,6 @@ export function AddressComponent(props: IAddressComponentProps) {
       source.cancel('ComponentWillUnmount');
     };
   }, [props.formData.zipCode]);
-
 
   const onBlurField: (key: AddressKeys, value: any) => void = (key: AddressKeys, value: any) => {
     const validationErrors: IAddressValidationErrors = validate();
@@ -214,7 +213,7 @@ export function AddressComponent(props: IAddressComponentProps) {
 
   return (
     <div className='address-component' key={`address_component_${props.id}`}>
-      {renderLabel('ux_editor.modal_configure_address_component_address', `address_address_${props.id}`)}
+      {renderLabel('address_component.address', `address_address_${props.id}`)}
       <input
         id={`address_address_${props.id}`}
         className={classNames('form-control',
@@ -235,7 +234,7 @@ export function AddressComponent(props: IAddressComponentProps) {
       {
         !props.simplified &&
         <>
-          {renderLabel('ux_editor.modal_configure_address_component_care_of', `address_care_of_${props.id}`)}
+          {renderLabel('address_component.care_of', `address_care_of_${props.id}`)}
           <input
             id={`address_care_of_${props.id}`}
             className={classNames('form-control',
@@ -257,7 +256,7 @@ export function AddressComponent(props: IAddressComponentProps) {
 
       <div className='address-component-postplace-zipCode'>
         <div className='address-component-zipCode'>
-          {renderLabel('ux_editor.modal_configure_address_component_zip_code', `address_zip_code_${props.id}`)}
+          {renderLabel('address_component.zip_code', `address_zip_code_${props.id}`)}
           <input
             id={`address_zip_code_${props.id}`}
             className={classNames('address-component-small-inputs', 'form-control',
@@ -270,6 +269,7 @@ export function AddressComponent(props: IAddressComponentProps) {
             onBlur={onBlurField.bind(null, AddressKeys.zipCode, zipCode)}
             readOnly={props.readOnly}
             required={props.required}
+            type='number'
           />
           {allValidations ?
             renderValidationMessagesForComponent(allValidations[AddressKeys.zipCode],
@@ -278,7 +278,7 @@ export function AddressComponent(props: IAddressComponentProps) {
         </div>
 
         <div className='address-component-postplace'>
-          {renderLabel('ux_editor.modal_configure_address_component_post_place', `address_post_place_${props.id}`, true)}
+          {renderLabel('address_component.post_place', `address_post_place_${props.id}`, true)}
           <input
             id={`address_post_place_${props.id}`}
             className={classNames('form-control disabled',
@@ -296,10 +296,10 @@ export function AddressComponent(props: IAddressComponentProps) {
       </div>
       { !props.simplified &&
       <>
-        {renderLabel('ux_editor.modal_configure_address_component_house_number', `address_house_number_${props.id}`)}
+        {renderLabel('address_component.house_number', `address_house_number_${props.id}`)}
         <p>
           {
-            getLanguageFromKey('ux_editor.modal_configure_address_component_house_number_helper',
+            getLanguageFromKey('address_component.house_number_helper',
               props.language)
           }
         </p>

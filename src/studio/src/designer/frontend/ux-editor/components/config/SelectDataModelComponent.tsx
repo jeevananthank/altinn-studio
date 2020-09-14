@@ -1,3 +1,5 @@
+/* eslint-disable react/no-unused-state */
+/* eslint-disable no-restricted-syntax */
 import * as React from 'react';
 import { connect } from 'react-redux';
 import Select from 'react-select';
@@ -12,6 +14,7 @@ export interface IProvidedProps {
   noOptionsMessage?: () => string;
   hideRestrictions?: boolean;
   language: any;
+  selectGroup?: boolean;
 }
 
 export interface ISelectDataModelState {
@@ -57,7 +60,8 @@ export class SelectDataModel extends React.Component<
       );
     }
     const selected = this.props.dataModelElements.find(
-      (modelBinding) => modelBinding.dataBindingName === selectedId);
+      (modelBinding) => modelBinding.dataBindingName === selectedId,
+    );
     return (
       Object.keys(selected.restrictions).length === 0 ? (
         <li className='a-dotted'>
@@ -84,7 +88,8 @@ export class SelectDataModel extends React.Component<
   public render() {
     const dataModelElementNames = [];
     for (const element of this.props.dataModelElements) {
-      if (element.dataBindingName) {
+      if (element.dataBindingName &&
+        ((!this.props.selectGroup && element.maxOccurs <= 1) || (this.props.selectGroup && element.maxOccurs > 1))) {
         dataModelElementNames.push({ value: element.dataBindingName, label: element.displayString });
       }
     }

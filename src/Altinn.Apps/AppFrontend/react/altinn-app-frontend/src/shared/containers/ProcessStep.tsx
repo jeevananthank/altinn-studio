@@ -7,8 +7,7 @@ import { AltinnAppHeader } from 'altinn-shared/components';
 import { AltinnAppTheme } from 'altinn-shared/theme';
 import { IParty } from 'altinn-shared/types';
 import { returnUrlToMessagebox } from 'altinn-shared/utils';
-import { IRuntimeState, ProcessSteps } from '../../types';
-import { IValidations, ITextResource } from '../../types/global';
+import { IRuntimeState, ProcessSteps, IValidations, ITextResource } from 'src/types';
 import ErrorReport from '../../components/message/ErrorReport';
 import Header from '../../components/process-step/Header';
 import NavBar from '../../components/process-step/NavBar';
@@ -33,7 +32,7 @@ const ProcessStepComponent = (props) => {
   const handleModalCloseButton = () => {
     const origin = window.location.origin;
     if (window) {
-      window.location.href = returnUrlToMessagebox(origin);
+      window.location.href = returnUrlToMessagebox(origin, party.partyId);
     }
     return true;
   };

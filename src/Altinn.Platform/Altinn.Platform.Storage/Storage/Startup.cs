@@ -9,6 +9,7 @@ using Altinn.Common.PEP.Interfaces;
 using Altinn.Platform.Storage.Authorization;
 using Altinn.Platform.Storage.Clients;
 using Altinn.Platform.Storage.Configuration;
+using Altinn.Platform.Storage.Health;
 using Altinn.Platform.Storage.Helpers;
 using Altinn.Platform.Storage.Repository;
 using Altinn.Platform.Storage.Wrappers;
@@ -76,6 +77,7 @@ namespace Altinn.Platform.Storage
 
             services.AddControllers().AddNewtonsoftJson();
             services.AddMemoryCache();
+            services.AddHealthChecks().AddCheck<HealthCheck>("storage_health_check");
 
             services.AddHttpClient<AuthorizationApiClient>();
 
@@ -140,6 +142,7 @@ namespace Altinn.Platform.Storage
             {
                 services.AddSingleton(typeof(ITelemetryChannel), new ServerTelemetryChannel() { StorageFolder = "/tmp/logtelemetry" });
                 services.AddApplicationInsightsTelemetry(ApplicationInsightsKey);
+                services.AddApplicationInsightsTelemetryProcessor<HealthTelemetryFilter>();
                 services.AddSingleton<ITelemetryInitializer, CustomTelemetryInitializer>();
 
                 _logger.LogInformation($"Startup // ApplicationInsightsTelemetryKey = {ApplicationInsightsKey}");
@@ -230,6 +233,7 @@ namespace Altinn.Platform.Storage
             app.UseEndpoints(endpoints =>
             {
                 endpoints.MapControllers();
+                endpoints.MapHealthChecks("/health");
             });
         }
 

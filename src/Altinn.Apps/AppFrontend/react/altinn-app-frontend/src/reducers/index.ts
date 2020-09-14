@@ -1,9 +1,8 @@
-import {
-  combineReducers,
+/* eslint-disable import/no-cycle */
+import { combineReducers,
   Reducer,
-  ReducersMapObject,
-} from 'redux';
-import FormConfigState, { IFormConfigState } from '../features/form/config/formConfigReducer';
+  ReducersMapObject } from 'redux';
+import OptionsReducer, { IOptionsState } from '../shared/resources/options/optionsReducer';
 import FormDataReducer, { IFormDataState } from '../features/form/data/formDataReducer';
 import FormDataModel, { IDataModelState } from '../features/form/datamodel/formDatamodelReducer';
 import { IFormDynamicState } from '../features/form/dynamics';
@@ -21,35 +20,34 @@ import PartyReducer, { IPartyState } from '../shared/resources/party/partyReduce
 import processReducer, { IProcessState } from '../shared/resources/process/processReducer';
 import ProfileReducer, { IProfileState } from '../shared/resources/profile/profileReducers';
 import TextResourcesReducer, { ITextResourcesState } from '../shared/resources/textResources/textResourcesReducer';
-import IsLoadingReducer, { IIsLoadingState } from './../shared/resources/isLoading/isLoadingReducers';
-import QueueReducer, { IQueueState } from './../shared/resources/queue/queueReducer';
+import IsLoadingReducer, { IIsLoadingState } from '../shared/resources/isLoading/isLoadingReducers';
+import QueueReducer, { IQueueState } from '../shared/resources/queue/queueReducer';
 
 export interface IReducers<T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16, T17, T18, T19> {
   formLayout: T1;
   formData: T2;
-  formConfig: T3;
-  formDataModel: T4;
-  attachments: T5;
-  formDynamics: T6;
-  formRules?: T7;
-  language: T8;
-  textResources: T9;
-  profile: T10;
-  formValidations: T11;
-  party: T12;
-  applicationMetadata: T13;
-  instantiation: T14;
-  organisationMetaData: T15;
-  instanceData: T16;
-  process: T17;
-  isLoading: T18;
-  queue: T19;
+  formDataModel: T3;
+  attachments: T4;
+  formDynamics: T5;
+  formRules?: T6;
+  language: T7;
+  textResources: T8;
+  profile: T9;
+  formValidations: T10;
+  party: T11;
+  applicationMetadata: T12;
+  instantiation: T13;
+  organisationMetaData: T14;
+  instanceData: T15;
+  process: T16;
+  isLoading: T17;
+  queue: T18;
+  optionState: T19
 }
 
 export interface IRuntimeReducers extends IReducers<
   Reducer<ILayoutState>,
   Reducer<IFormDataState>,
-  Reducer<IFormConfigState>,
   Reducer<IDataModelState>,
   Reducer<IAttachmentState>,
   Reducer<IFormDynamicState>,
@@ -65,7 +63,8 @@ export interface IRuntimeReducers extends IReducers<
   Reducer<IInstanceDataState>,
   Reducer<IProcessState>,
   Reducer<IIsLoadingState>,
-  Reducer<IQueueState>
+  Reducer<IQueueState>,
+  Reducer<IOptionsState>
   >,
   ReducersMapObject {
 }
@@ -73,7 +72,6 @@ export interface IRuntimeReducers extends IReducers<
 const reducers: IRuntimeReducers = {
   applicationMetadata: ApplicationMetadataReducer,
   attachments: AttachmentReducer,
-  formConfig: FormConfigState,
   formData: FormDataReducer,
   formDataModel: FormDataModel,
   formDynamics: FormDynamicsReducer,
@@ -90,6 +88,7 @@ const reducers: IRuntimeReducers = {
   profile: ProfileReducer,
   queue: QueueReducer,
   textResources: TextResourcesReducer,
+  optionState: OptionsReducer,
 };
 
 export default combineReducers(reducers);

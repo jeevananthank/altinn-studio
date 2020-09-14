@@ -1,9 +1,12 @@
 using System;
 using System.IO;
 using System.Reflection;
+using Altinn.Studio.Designer.Configuration;
+using Altinn.Studio.Designer.Health;
 using Altinn.Studio.Designer.Infrastructure;
 using Altinn.Studio.Designer.Infrastructure.Authorization;
 using Altinn.Studio.Designer.TypedHttpClients;
+using Microsoft.ApplicationInsights.Extensibility;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
@@ -54,6 +57,8 @@ namespace Altinn.Studio.Designer
         /// <param name="services">The services available for asp.net Core</param>
         public void ConfigureServices(IServiceCollection services)
         {
+            Console.WriteLine($"// Program.cs // ConfigureServices // Attempting to configure services.");
+
             services.Configure<KestrelServerOptions>(options =>
             {
                 options.AllowSynchronousIO = true;
@@ -65,6 +70,8 @@ namespace Altinn.Studio.Designer
             services.AddHttpContextAccessor();
             services.AddMemoryCache();
             services.AddResponseCompression();
+            services.AddHealthChecks().AddCheck<HealthCheck>("designer_health_check");
+            Console.WriteLine($"// Program.cs // ConfigureServices // Health check successfully added.");
 
             CreateDirectory();
 
@@ -74,10 +81,15 @@ namespace Altinn.Studio.Designer
             services.RegisterTypedHttpClients(Configuration);
             services.ConfigureAuthentication();
 
+            Console.WriteLine($"// Program.cs // ConfigureServices // Configure authentication successfully added.");
+
             // Add application insight telemetry
             if (!string.IsNullOrEmpty(ApplicationInsightsKey))
             {
                 services.AddApplicationInsightsTelemetry(ApplicationInsightsKey);
+                services.AddApplicationInsightsTelemetryProcessor<HealthTelemetryFilter>();
+                services.AddSingleton<ITelemetryInitializer, CustomTelemetryInitializer>();
+                Console.WriteLine($"// Program.cs // ConfigureServices // Successfully added AI config.");
             }
 
             services.ConfigureLocalization();
@@ -95,6 +107,7 @@ namespace Altinn.Studio.Designer
                     // Catch swashbuckle exception if it doesn't find the generated XML documentation file
                 }
             });
+            Console.WriteLine($"// Program.cs // ConfigureServices // Function complete. Successfully added swagger.");
         }
 
         /// <summary>
@@ -114,6 +127,8 @@ namespace Altinn.Studio.Designer
                 appBuilder.UseExceptionHandler("/error");
             }
 
+            Console.WriteLine($"// Program.cs // Configure // Trying to use static files.");
+
             appBuilder.UseStaticFiles(new StaticFileOptions
             {
                 OnPrepareResponse = context =>
@@ -126,6 +141,8 @@ namespace Altinn.Studio.Designer
                     };
                 },
             });
+
+            Console.WriteLine($"// Program.cs // Configure // Successfully using static files.");
 
             const string swaggerRoutePrefix = "designer/swagger";
             appBuilder.UseSwagger(c =>
@@ -148,6 +165,8 @@ namespace Altinn.Studio.Designer
             appBuilder.UseResponseCompression();
             appBuilder.UseRequestLocalization();
 
+            Console.WriteLine($"// Program.cs // Configure // Attempting to add endpoints.");
+
             appBuilder.UseEndpoints(endpoints =>
             {
                 // ------------------------- DEV ----------------------------- //
@@ -163,16 +182,20 @@ namespace Altinn.Studio.Designer
                 endpoints.MapControllerRoute(
                         name: "serviceDevelopmentRoute",
                         pattern: "designer/{org}/{app}",
-                        defaults: new { controller = "ServiceDevelopment", action = "index" });
+                        defaults: new { controller = "ServiceDevelopment", action = "index" },
+                        constraints: new
+                        {
+                            app = "^[a-z]+[a-zA-Z0-9-]+[a-zA-Z0-9]$",
+                        });
 
                 endpoints.MapControllerRoute(
-                    name: "designerApiRoute",
-                    pattern: "designerapi/{controller}/{action=Index}/{id?}",
-                    defaults: new { controller = "Repository" },
-                    constraints: new
-                    {
-                        controller = @"(Repository|Language|User)",
-                    });
+                        name: "designerApiRoute",
+                        pattern: "designerapi/{controller}/{action=Index}/{id?}",
+                        defaults: new { controller = "Repository" },
+                        constraints: new
+                        {
+                            controller = @"(Repository|Language|User)",
+                        });
                 endpoints.MapControllerRoute(
                           name: "serviceRoute",
                           pattern: "designer/{org}/{app}/{controller}/{action=Index}/{id?}",
@@ -180,7 +203,7 @@ namespace Altinn.Studio.Designer
                           constraints: new
                           {
                               controller = @"(Codelist|Config|Service|RuntimeAPI|ManualTesting|Model|Rules|ServiceMetadata|Text|UI|UIEditor|ServiceDevelopment)",
-                              app = "[a-zA-Z][a-zA-Z0-9_\\-]{2,30}",
+                              app = "^[a-z]+[a-zA-Z0-9-]+[a-zA-Z0-9]$",
                               id = "[a-zA-Z0-9_\\-]{1,30}",
                           });
 
@@ -204,11 +227,18 @@ namespace Altinn.Studio.Designer
                     name: "defaultRoute",
                     pattern: "{action=StartPage}/{id?}",
                     defaults: new { controller = "Home" });
+
+                // ---------------------- MONITORING -------------------------- //
+                endpoints.MapHealthChecks("/health");
             });
+
+            Console.WriteLine($"// Program.cs // Configure // Successfully added endpoints.");
         }
 
         private void CreateDirectory()
         {
+            Console.WriteLine($"// Program.cs // CreateDirectory // Trying to create directory");
+
             // TODO: Figure out how appsettings.json parses values and merges with environment variables and use these here.
             // Since ":" is not valid in environment variables names in kubernetes, we can't use current docker-compose environment variables
             string repoLocation = Environment.GetEnvironmentVariable("ServiceRepositorySettings__RepositoryLocation") ??
@@ -217,6 +247,7 @@ namespace Altinn.Studio.Designer
             if (!Directory.Exists(repoLocation))
             {
                 Directory.CreateDirectory(repoLocation);
+                Console.WriteLine($"// Program.cs // CreateDirectory // Successfully created directory");
             }
         }
 

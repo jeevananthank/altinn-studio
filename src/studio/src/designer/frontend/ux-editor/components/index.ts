@@ -1,4 +1,3 @@
-
 export interface IComponentIcon {
   [key: string]: string;
 }
@@ -25,6 +24,7 @@ export enum ComponentTypes {
   Button,
   Container,
   AddressComponent,
+  Group
 }
 
 export const componentIcons: IComponentIcon = {
@@ -39,6 +39,7 @@ export const componentIcons: IComponentIcon = {
   FileUpload: 'fa fa-attachment',
   Button: 'fa fa-button',
   AddressComponent: 'fa fa-address',
+  Group: 'fa fa-group',
 };
 
 export const textComponents: IComponent[] = [
@@ -91,17 +92,11 @@ export const schemaComponents: IComponent[] = [
       required: true,
     },
   },
-  /* removed for now
-    {
-      name: 'Dropdown',
-      Tag: DropdownComponent,
-      Type: ComponentTypes.DropDown,
-      Icon: componentIcons.Dropdown,
-      customProperties: {
-        options: [],
-      },
-    },
-    */
+  {
+    name: 'Dropdown',
+    Type: ComponentTypes.DropDown,
+    Icon: componentIcons.Dropdown,
+  },
   {
     name: 'FileUpload',
     Type: ComponentTypes.FileUpload,
@@ -144,6 +139,15 @@ export const advancedComponents: IComponent[] = [
     customProperties: {
       simplified: true,
       readOnly: false,
+    },
+  },
+  {
+    name: 'Group',
+    Type: ComponentTypes.Group,
+    Icon: componentIcons.Group,
+    customProperties: {
+      maxCount: 0,
+      children: [],
     },
   },
 ];

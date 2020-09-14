@@ -1,17 +1,15 @@
 using System;
 using System.Collections.Generic;
 using System.Security.Claims;
+
 using AltinnCore.Authentication.Constants;
 
-#pragma warning disable 1591
-#pragma warning disable SA1600
-
-namespace Altinn.Platform.Authorization.IntegrationTests.Utils
+namespace Altinn.Platform.Authorization.IntegrationTests.Util
 {
     public static class PrincipalUtil
     {
-        public static readonly string AltinnCoreClaimTypesOrg = "urn:altinn:org";
-        public static readonly string AltinnCoreClaimTypesOrgNumber = "urn:altinn:orgNumber";
+        private static readonly string AltinnCoreClaimTypesOrg = "urn:altinn:org";
+        private static readonly string AltinnCoreClaimTypesOrgNumber = "urn:altinn:orgNumber";
 
         public static string GetToken(int userId, int partyId, int authenticationLevel = 2)
         {
@@ -57,6 +55,7 @@ namespace Altinn.Platform.Authorization.IntegrationTests.Utils
             {
                 claims.Add(new Claim("urn:altinn:app", appId, ClaimValueTypes.String, issuer));
             }
+
             ClaimsIdentity identity = new ClaimsIdentity("mock-org");
             identity.AddClaims(claims);
             ClaimsPrincipal principal = new ClaimsPrincipal(identity);

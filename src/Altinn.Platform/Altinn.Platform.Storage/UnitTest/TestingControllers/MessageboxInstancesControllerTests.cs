@@ -4,7 +4,6 @@ using System.Linq;
 using System.Net;
 using System.Net.Http;
 using System.Net.Http.Headers;
-using System.Reflection;
 
 using Altinn.Common.PEP.Interfaces;
 
@@ -12,6 +11,7 @@ using Altinn.Platform.Storage.Clients;
 using Altinn.Platform.Storage.Helpers;
 using Altinn.Platform.Storage.UnitTest.Mocks;
 using Altinn.Platform.Storage.UnitTest.Mocks.Authentication;
+using Altinn.Platform.Storage.UnitTest.Mocks.Repository;
 using Altinn.Platform.Storage.UnitTest.Utils;
 using Altinn.Platform.Storage.Interface.Models;
 using Altinn.Platform.Storage.Repository;
@@ -21,38 +21,29 @@ using AltinnCore.Authentication.JwtCookie;
 
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
-using Microsoft.Azure.Documents;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 
 using Moq;
 using Newtonsoft.Json;
 using Xunit;
-using System.IO;
-using Altinn.Platform.Storage.UnitTest.Mocks.Repository;
 
 namespace Altinn.Platform.Storage.UnitTest.TestingControllers
 {
     public partial class IntegrationTests
     {
-
-        public class MessageboxInstancesControllerTests : IClassFixture<WebApplicationFactory<Startup>>
+        public class MessageBoxInstancesControllerTests : IClassFixture<WebApplicationFactory<Startup>>
         {
             private const string BasePath = "/storage/api/v1";
-            private const string org = "tdd";
-            private const string app = "test-applikasjon-1";   
             private readonly WebApplicationFactory<Startup> _factory;
-            private readonly string _validToken, _validTokenUsr3;
 
             /// <summary>
-            /// Initializes a new instance of the <see cref="MessageboxInstancesControllerTests"/> class with the given <see cref="WebApplicationFactory{TStartup}"/>.
+            /// Initializes a new instance of the <see cref="MessageBoxInstancesControllerTests"/> class with the given <see cref="WebApplicationFactory{TStartup}"/>.
             /// </summary>
             /// <param name="factory">The <see cref="WebApplicationFactory{TStartup}"/> to use when setting up the test server.</param>
-            public MessageboxInstancesControllerTests(WebApplicationFactory<Startup> factory)
+            public MessageBoxInstancesControllerTests(WebApplicationFactory<Startup> factory)
             {
                 _factory = factory;
-                _validToken = PrincipalUtil.GetToken(1, 1000);
-                _validTokenUsr3 = PrincipalUtil.GetToken(3, 1000);
             }
 
             /// <summary>
@@ -64,7 +55,7 @@ namespace Altinn.Platform.Storage.UnitTest.TestingControllers
             ///   Default language is used for title, and the title contains the word "bokmål".
             /// </summary>
             [Fact]
-            public async void GetMessageBoxInstanceList_RequestAllInstancesForAnOwnerWithtoutLanguage_ReturnsAllElementsUsingDefaultLanguage()
+            public async void GetMessageBoxInstanceList_RequestAllInstancesForAnOwnerWithoutLanguage_ReturnsAllElementsUsingDefaultLanguage()
             {
                 // Arrange
                 HttpClient client = GetTestClient();
@@ -75,9 +66,9 @@ namespace Altinn.Platform.Storage.UnitTest.TestingControllers
 
                 // Assert
                 string content = await response.Content.ReadAsStringAsync();
-                List<MessageBoxInstance> messageBoxInstances = JsonConvert.DeserializeObject(content, typeof(List<MessageBoxInstance>)) as List<MessageBoxInstance>;
+                List<MessageBoxInstance> messageBoxInstances = JsonConvert.DeserializeObject<List<MessageBoxInstance>>(content);
 
-                int expectedCount = 10;
+                int expectedCount = 13;
                 string expectedTitle = "Endring av navn (RF-1453)";
                 int actualCount = messageBoxInstances.Count;
                 string actualTitle = messageBoxInstances.First().Title;
@@ -109,7 +100,7 @@ namespace Altinn.Platform.Storage.UnitTest.TestingControllers
                 string actualTitle = messageBoxInstances.First().Title;
 
                 // Assert
-                int expectedCount = 10;
+                int expectedCount = 13;
                 string expectedTitle = "Name change";
                 Assert.Equal(expectedCount, actualCount);
                 Assert.Equal(expectedTitle, actualTitle);
@@ -140,7 +131,7 @@ namespace Altinn.Platform.Storage.UnitTest.TestingControllers
                 List<MessageBoxInstance> messageBoxInstances = JsonConvert.DeserializeObject<List<MessageBoxInstance>>(responseContent);
 
                 int actualCount = messageBoxInstances.Count;
-                int expectedCount = 4;
+                int expectedCount = 6;
                 Assert.Equal(expectedCount, actualCount);
             }
 
@@ -241,8 +232,6 @@ namespace Altinn.Platform.Storage.UnitTest.TestingControllers
             [Fact]
             public async void Undelete_RestoreSoftDeletedInstance_ReturnsTrue()
             {
-                TestDataUtil.DeleteInstanceAndData(1337, new Guid("da1f620f-1764-4f98-9f03-74e5e20f10fe"));
-                TestDataUtil.PrepareInstance(1337, new Guid("da1f620f-1764-4f98-9f03-74e5e20f10fe"));
                 // Arrange
                 HttpClient client = GetTestClient();
                 client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", PrincipalUtil.GetToken(3, 1337, 3));
@@ -257,7 +246,6 @@ namespace Altinn.Platform.Storage.UnitTest.TestingControllers
                 bool actualResult = JsonConvert.DeserializeObject<bool>(content);
 
                 Assert.True(actualResult);
-                TestDataUtil.DeleteInstanceAndData(1337, new Guid("da1f620f-1764-4f98-9f03-74e5e20f10fe"));
             }
 
             /// <summary>
@@ -365,9 +353,6 @@ namespace Altinn.Platform.Storage.UnitTest.TestingControllers
             public async void Delete_SoftDeleteActiveInstance_InstanceIsMarked_EventIsCreated_ReturnsTrue()
             {
                 // Arrange
-                TestDataUtil.DeleteInstanceAndData(1337, new Guid("08274f48-8313-4e2d-9788-bbdacef5a54e"));
-                TestDataUtil.PrepareInstance(1337, new Guid("08274f48-8313-4e2d-9788-bbdacef5a54e"));
-
                 HttpClient client = GetTestClient();
                 client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", PrincipalUtil.GetToken(3, 1337, 3));
 
@@ -380,7 +365,6 @@ namespace Altinn.Platform.Storage.UnitTest.TestingControllers
                 string content = await response.Content.ReadAsStringAsync();
                 bool actualResult = JsonConvert.DeserializeObject<bool>(content);
                 Assert.True(actualResult);
-                TestDataUtil.DeleteInstanceAndData(1337, new Guid("08274f48-8313-4e2d-9788-bbdacef5a54e"));
             }
 
             /// <summary>
@@ -393,11 +377,8 @@ namespace Altinn.Platform.Storage.UnitTest.TestingControllers
             public async void Delete_UserHasTooLowAuthLv_ReturnsStatusForbidden()
             {
                 // Arrange
-                InstanceEvent instanceEvent = null;
-
                 Mock<IInstanceEventRepository> instanceEventRepository = new Mock<IInstanceEventRepository>();
-                instanceEventRepository.Setup(s => s.InsertInstanceEvent(It.IsAny<InstanceEvent>())).Callback<InstanceEvent>(p => instanceEvent = p)
-                    .ReturnsAsync((InstanceEvent r) => r);
+                instanceEventRepository.Setup(s => s.InsertInstanceEvent(It.IsAny<InstanceEvent>())).ReturnsAsync((InstanceEvent r) => r);
 
                 HttpClient client = GetTestClient();
                 string token = PrincipalUtil.GetToken(1337, 1337, 1);
@@ -447,8 +428,6 @@ namespace Altinn.Platform.Storage.UnitTest.TestingControllers
             public async void Delete_HardDeleteSoftDeleted()
             {
                 // Arrange
-                TestDataUtil.DeleteInstanceAndData(1337, new Guid("7a951b5b-ef96-4032-9273-f8d7651266f4"));
-                TestDataUtil.PrepareInstance(1337, new Guid("7a951b5b-ef96-4032-9273-f8d7651266f4"));
                 HttpClient client = GetTestClient();
                 client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", PrincipalUtil.GetToken(3, 1337, 3));
 
@@ -464,7 +443,6 @@ namespace Altinn.Platform.Storage.UnitTest.TestingControllers
                 bool expectedResult = true;
                 Assert.Equal(expectedResult, actualResult);
                 Assert.Equal(expectedStatusCode, actualStatusCode);
-                TestDataUtil.DeleteInstanceAndData(1337, new Guid("7a951b5b-ef96-4032-9273-f8d7651266f4"));
             }
 
             /// <summary>
@@ -478,22 +456,17 @@ namespace Altinn.Platform.Storage.UnitTest.TestingControllers
             [Fact]
             public async void Delete_ActiveHasRole_ReturnsOk()
             {
-                TestDataUtil.DeleteInstanceAndData(1337, new Guid("d9a586ca-17ab-453d-9fc5-35eaadb3369b"));
-                TestDataUtil.PrepareInstance(1337, new Guid("d9a586ca-17ab-453d-9fc5-35eaadb3369b"));
-
                 // Arrange
                 HttpClient client = GetTestClient();
                 client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", PrincipalUtil.GetToken(3, 1337, 3));
 
                 // Act
                 HttpResponseMessage response = await client.DeleteAsync($"{BasePath}/sbl/instances/1337/d9a586ca-17ab-453d-9fc5-35eaadb3369b?hard=true");
-                HttpStatusCode actualStatusCode = response.StatusCode;
                 string content = await response.Content.ReadAsStringAsync();
                 bool actualResult = JsonConvert.DeserializeObject<bool>(content);
 
                 // Assert
                 Assert.True(actualResult);
-                TestDataUtil.DeleteInstanceAndData(1337, new Guid("d9a586ca-17ab-453d-9fc5-35eaadb3369b"));
             }
 
             /// <summary>
@@ -530,8 +503,6 @@ namespace Altinn.Platform.Storage.UnitTest.TestingControllers
             [Fact]
             public async void Delete_ArchivedHasRole_ReturnsOk()
             {
-                TestDataUtil.DeleteInstanceAndData(1337,"3b67392f-36c6-42dc-998f-c367e771dcdd");
-                TestDataUtil.PrepareInstance(1337, "3b67392f-36c6-42dc-998f-c367e771dcdd");
                 // Arrange
                 HttpClient client = GetTestClient();
                 client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", PrincipalUtil.GetToken(3, 1337, 3));
@@ -545,7 +516,6 @@ namespace Altinn.Platform.Storage.UnitTest.TestingControllers
                 // Assert
                 Assert.True(actualResult);
                 Assert.Equal(HttpStatusCode.OK, actualStatusCode);
-                TestDataUtil.DeleteInstanceAndData(1337, "3b67392f-36c6-42dc-998f-c367e771dcdd");
             }
 
             /// <summary>
@@ -597,30 +567,6 @@ namespace Altinn.Platform.Storage.UnitTest.TestingControllers
                 }).CreateClient();
 
                 return client;
-            }
-
-            /// <summary>
-            /// Create a DocumentClientException using reflection because all constructors are internal.
-            /// </summary>
-            /// <param name="message">Exception message</param>
-            /// <param name="httpStatusCode">The HttpStatus code.</param>
-            /// <returns></returns>
-            private static DocumentClientException CreateDocumentClientExceptionForTesting(string message, HttpStatusCode httpStatusCode)
-            {
-                Type type = typeof(DocumentClientException);
-
-                string fullName = type.FullName ?? "wtf?";
-
-                object documentClientExceptionInstance = type.Assembly.CreateInstance(
-                    fullName,
-                    false,
-                    BindingFlags.Instance | BindingFlags.NonPublic,
-                    null,
-                    new object[] { message, null, null, httpStatusCode, null },
-                    null,
-                    null);
-
-                return (DocumentClientException)documentClientExceptionInstance;
             }
         }
     }

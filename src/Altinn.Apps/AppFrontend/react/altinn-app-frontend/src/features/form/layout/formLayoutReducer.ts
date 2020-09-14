@@ -1,15 +1,10 @@
 import update from 'immutability-helper';
 import { Action, Reducer } from 'redux';
-import {
-  ILayout,
-} from './index';
-import {
-  IFetchFormLayoutFulfilled,
-  IFetchFormLayoutRejected,
-} from './fetch/fetchFormLayoutActions';
+import { IUiConfig } from 'src/types';
+import { ILayout } from './index';
+import { IFetchFormLayoutFulfilled, IFetchFormLayoutRejected } from './fetch/fetchFormLayoutActions';
 import * as ActionTypes from './formLayoutActionTypes';
-import { IUpdateFocusFulfilled, IUpdateFormLayout, IUpdateHiddenComponents, IUpdateAutoSave } from './update/updateFormLayoutActions';
-import { IUiConfig } from '../../../types/global';
+import { IUpdateFocusFulfilled, IUpdateFormLayout, IUpdateHiddenComponents, IUpdateAutoSave, IUpdateRepeatingGroupsFulfilled } from './update/updateFormLayoutActions';
 
 export interface ILayoutState {
   layout: ILayout;
@@ -24,6 +19,7 @@ const initialState: ILayoutState = {
     focus: null,
     hiddenFields: [],
     autoSave: null,
+    repeatingGroups: {},
   },
 };
 
@@ -71,6 +67,18 @@ const LayoutReducer: Reducer<ILayoutState> = (
         layout: {
           [index]: {
             $set: layoutElement,
+          },
+        },
+      });
+    }
+    case ActionTypes.UPDATE_REPEATING_GROUPS_FULFILLED: {
+      const {
+        repeatingGroups: repeatingGroup,
+      } = action as IUpdateRepeatingGroupsFulfilled;
+      return update<ILayoutState>(state, {
+        uiConfig: {
+          repeatingGroups: {
+            $set: repeatingGroup,
           },
         },
       });

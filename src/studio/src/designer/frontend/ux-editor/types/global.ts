@@ -45,10 +45,11 @@ declare global {
   }
 
   export interface ICreateFormContainer {
-    repeating: boolean;
-    dataModelGroup: string;
+    dataModelBindings?: IDataModelBindings;
+    maxCount?: number;
     index?: number;
     hidden?: boolean;
+    itemType: string;
   }
 
   export interface ITextResourceBindings {
@@ -58,6 +59,7 @@ declare global {
   export interface ICreateFormComponent {
     component?: string;
     componentType: ComponentTypes;
+    itemType?: string;
     type?: string;
     name?: string;
     size?: string;
@@ -93,6 +95,7 @@ declare global {
   export interface IFormCheckboxComponent extends IFormComponent {
     options: IOptions[];
     preselectedOptionIndex?: number;
+    optionsId: string;
   }
 
   export interface IFormTextAreaComponent extends IFormComponent { }
@@ -104,10 +107,11 @@ declare global {
   export interface IFormRadioButtonComponent extends IFormComponent {
     options: IOptions[];
     preselectedOptionIndex?: number;
+    optionsId: string;
   }
 
   export interface IFormDropdownComponent extends IFormComponent {
-    options: IOptions[];
+    optionsId: string;
   }
 
   export interface IFormFileUploaderComponent extends IFormComponent {
@@ -130,6 +134,11 @@ declare global {
 
   export interface IFormAddressComponent extends IFormComponent {
     simplified: boolean;
+  }
+
+  export interface IFormGroupComponent extends IFormComponent {
+    maxCount: number;
+    children: string[];
   }
 
   export type FormComponentType =

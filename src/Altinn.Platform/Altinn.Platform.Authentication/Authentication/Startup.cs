@@ -3,6 +3,7 @@ using System.IO;
 using System.Reflection;
 using Altinn.Common.AccessToken.Configuration;
 using Altinn.Platform.Authentication.Configuration;
+using Altinn.Platform.Authentication.Health;
 using Altinn.Platform.Authentication.Repositories;
 using Altinn.Platform.Authentication.Services;
 using Altinn.Platform.Authentication.Services.Interfaces;
@@ -71,6 +72,7 @@ namespace Altinn.Platform.Authentication
                 options.JsonSerializerOptions.IgnoreNullValues = true;
             });
             services.AddMvc().AddControllersAsServices();
+            services.AddHealthChecks().AddCheck<HealthCheck>("authentication_health_check");
 
             services.AddSingleton(Configuration);
             services.Configure<GeneralSettings>(Configuration.GetSection("GeneralSettings"));
@@ -113,6 +115,7 @@ namespace Altinn.Platform.Authentication
             {
                 services.AddSingleton(typeof(ITelemetryChannel), new ServerTelemetryChannel() { StorageFolder = "/tmp/logtelemetry" });
                 services.AddApplicationInsightsTelemetry(ApplicationInsightsKey);
+                services.AddApplicationInsightsTelemetryProcessor<HealthTelemetryFilter>();
                 services.AddSingleton<ITelemetryInitializer, CustomTelemetryInitializer>();
 
                 _logger.LogInformation($"Startup // ApplicationInsightsTelemetryKey = {ApplicationInsightsKey}");
@@ -157,7 +160,7 @@ namespace Altinn.Platform.Authentication
             }
             else
             {
-                app.UseExceptionHandler("/Error");
+                app.UseExceptionHandler("/authentication/api/v1/error");
             }
 
             app.UseSwagger(o => o.RouteTemplate = "authentication/swagger/{documentName}/swagger.json");
@@ -174,6 +177,7 @@ namespace Altinn.Platform.Authentication
             app.UseEndpoints(endpoints =>
             {
                 endpoints.MapControllers();
+                endpoints.MapHealthChecks("/health");
             });
         }
 

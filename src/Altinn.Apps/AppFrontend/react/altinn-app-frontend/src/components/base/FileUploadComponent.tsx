@@ -1,3 +1,4 @@
+/* eslint-disable import/order */
 /* eslint-disable jsx-a11y/interactive-supports-focus */
 /* eslint-disable jsx-a11y/click-events-have-key-events */
 /* eslint-disable react/prop-types */
@@ -7,13 +8,15 @@ import { useSelector } from 'react-redux';
 import { AltinnAppTheme } from 'altinn-shared/theme';
 import { getLanguageFromKey } from 'altinn-shared/utils';
 import { AltinnLoader } from 'altinn-shared/components';
+import useMediaQuery from '@material-ui/core/useMediaQuery';
+import { isMobile } from 'react-device-detect';
+import { removeFileEnding, getFileEnding } from '../../utils/attachment';
 import { IAttachment } from '../../shared/resources/attachments';
 import AttachmentDispatcher from '../../shared/resources/attachments/attachmentActions';
 import '../../styles/FileUploadComponent.css';
 import { IRuntimeState } from '../../types';
-import { IComponentValidations } from '../../types/global';
+import { IComponentValidations } from '../../types';
 import { renderValidationMessagesForComponent } from '../../utils/render';
-
 import uuid = require('uuid');
 
 export interface IFileUploadProps {
@@ -57,6 +60,7 @@ export function FileUploadComponent(props: IFileUploadProps) {
   const [attachments, dispatch] = React.useReducer(reducer, []);
   const [validations, setValidations] = React.useState([]);
   const [showFileUpload, setShowFileUpload] = React.useState(false);
+  const mobileView = useMediaQuery('(max-width:992px)'); // breakpoint on altinn-modal
 
   function reducer(state, action) {
     if (action.type === 'replace') {
@@ -75,8 +79,9 @@ export function FileUploadComponent(props: IFileUploadProps) {
       attachmentToDelete.deleting = true;
       const newList = state.slice();
       newList[action.index] = attachmentToDelete;
+      return newList;
     }
-    return [];
+    return state;
   }
 
   const currentAttachments: IAttachment[] = useSelector(
@@ -154,7 +159,9 @@ export function FileUploadComponent(props: IFileUploadProps) {
         });
       }
     }
-    dispatch({ type: 'add', value: newFiles });
+    if (totalAttachments <= props.maxNumberOfAttachments) {
+      dispatch({ type: 'add', value: newFiles });
+    }
     setValidations(tmpValidations);
   };
 
@@ -180,8 +187,12 @@ export function FileUploadComponent(props: IFileUploadProps) {
         <table className='file-upload-table'>
           <thead>
             <tr className='blue-underline' id='altinn-file-list-row-header'>
-              <th scope='col'>{getLanguageFromKey('form_filler.file_uploader_list_header_name', props.language)}</th>
-              <th scope='col'>{getLanguageFromKey('form_filler.file_uploader_list_header_file_size', props.language)}</th>
+              <th
+                scope='col'
+                style={mobileView ? { width: '65%' } : null}
+              >{getLanguageFromKey('form_filler.file_uploader_list_header_name', props.language)}
+              </th>
+              { !mobileView ? <th scope='col'>{getLanguageFromKey('form_filler.file_uploader_list_header_file_size', props.language)}</th> : null}
               <th scope='col'>{getLanguageFromKey('form_filler.file_uploader_list_header_status', props.language)}</th>
               <th scope='col'>
                 <p className='sr-only'>
@@ -199,16 +210,53 @@ export function FileUploadComponent(props: IFileUploadProps) {
                   id={`altinn-file-list-row-${attachment.id}`}
                   tabIndex={0}
                 >
-                  <td>{attachment.name}</td>
                   <td>
-                    {`${(attachment.size / bytesInOneMB).toFixed(2)} ${
-                      getLanguageFromKey('form_filler.file_uploader_mb', props.language)}`}
-                  </td >
+                    <div
+                      style={{
+                        display: 'flex',
+                      }}
+                    >
+                      <div
+                        style={{
+                          textOverflow: 'ellipsis',
+                          overflow: 'hidden',
+                          whiteSpace: 'nowrap',
+                        }}
+                      >
+                        {removeFileEnding(attachment.name)}
+                      </div>
+                      <div
+                        style={{
+                        }}
+                      >
+                        {getFileEnding(attachment.name)}
+                      </div>
+                    </div>
+                    {mobileView ?
+                      <div style={{ color: AltinnAppTheme.altinnPalette.primary.grey }}>
+                        {`${(attachment.size / bytesInOneMB).toFixed(2)} ${
+                          getLanguageFromKey('form_filler.file_uploader_mb', props.language)}`
+                        }
+                      </div>
+                      : null
+                    }
+                  </td>
+                  {!mobileView ?
+                    <td>
+                      {`${(attachment.size / bytesInOneMB).toFixed(2)} ${
+                        getLanguageFromKey('form_filler.file_uploader_mb', props.language)}`}
+                    </td>
+                    : null
+                  }
                   <td>
                     {attachment.uploaded &&
                       <div>
-                        {getLanguageFromKey('form_filler.file_uploader_list_status_done', props.language)}
-                        < i className='ai ai-check-circle' />
+                        {!mobileView ? getLanguageFromKey('form_filler.file_uploader_list_status_done', props.language) : null}
+                        <i
+                          className='ai ai-check-circle'
+                          aria-label={getLanguageFromKey('form_filler.file_uploader_list_status_done', props.language)}
+                          style={mobileView ? { marginLeft: '10px' } : null}
+                        />
                       </div>
                     }
                     {!attachment.uploaded &&
@@ -229,8 +277,13 @@ export function FileUploadComponent(props: IFileUploadProps) {
                     >
                       {!attachment.deleting &&
                         <>
-                          {getLanguageFromKey('form_filler.file_uploader_list_delete', props.language)}
-                          <i className='ai ai-trash' />
+                          {mobileView
+                            ? getLanguageFromKey('general.delete', props.language)
+                            : getLanguageFromKey('form_filler.file_uploader_list_delete', props.language)}
+                          <i
+                            className='ai ai-trash'
+                            aria-label={getLanguageFromKey('general.delete', props.language)}
+                          />
                         </>
                       }
                       {attachment.deleting &&
@@ -263,10 +316,18 @@ export function FileUploadComponent(props: IFileUploadProps) {
             className='file-upload-text-bold'
             id='file-upload-description'
           >
-            {getLanguageFromKey('form_filler.file_uploader_drag', props.language)}
-            <span className='file-upload-text-bold blue-underline'>
-              {` ${getLanguageFromKey('form_filler.file_uploader_find', props.language)}`}
-            </span>
+            {isMobile ?
+              <>
+                {getLanguageFromKey('form_filler.file_uploader_upload', props.language)}
+              </>
+              :
+              <>
+                {getLanguageFromKey('form_filler.file_uploader_drag', props.language)}
+                <span className='file-upload-text-bold blue-underline'>
+                  {` ${getLanguageFromKey('form_filler.file_uploader_find', props.language)}`}
+                </span>
+              </>
+            }
           </label>
         </div>
         <div className='col text-center'>
@@ -337,6 +398,7 @@ export function FileUploadComponent(props: IFileUploadProps) {
     <div
       className='container'
       id={`altinn-fileuploader-${props.id}`}
+      style={{ padding: '0px' }}
     >
       {shouldShowFileUpload() &&
       <div>

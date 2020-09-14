@@ -1,6 +1,7 @@
 import { object } from 'dot-object';
+import { ILayout, ILayoutGroup } from 'src/features/form/layout';
 
-const jsonPtr = require('json-ptr');
+const JsonPointer = require('jsonpointer');
 
 /**
  * Converts the formdata in store (that is flat) to a JSON
@@ -29,8 +30,8 @@ export interface IData {
 }
 
 /**
- * Convertes JSON to the flat datamodel used in Redux data store
- * @param data The formdata as JSON
+ * Converts JSON to the flat datamodel used in Redux data store
+ * @param data The form data as JSON
  */
 export function convertModelToDataBinding(data: any): any {
   return flattenObject(data);
@@ -40,8 +41,8 @@ export const filterFormData = (data: any, model: any): any => {
   const filteredResult: any = {};
   const rootKey = Object.keys(model.properties)[0];
   const modelPath = model.properties[rootKey].$ref.slice(1);
-  const pointer = jsonPtr.create(modelPath);
-  const root = pointer.get(model);
+  const pointer = JsonPointer.compile(modelPath);
+  const root: any = pointer.get(model);
   Object.keys(data).forEach((key: string) => {
     const formDataKey = getKeyWithoutIndex(key);
     const formDataRoot = formDataKey.split('.')[0];
@@ -63,8 +64,8 @@ export function getKeyWithoutIndex(keyWithIndex: string): string {
 }
 
 /**
- * Convertes JSON to the flat datamodel used in Redux data store
- * @param data The formdata as JSON
+ * Converts JSON to the flat datamodel used in Redux data store
+ * @param data The form data as JSON
  */
 export function flattenObject(data: any, index: boolean = false): any {
   const toReturn: IData = {};
@@ -94,9 +95,45 @@ export function flattenObject(data: any, index: boolean = false): any {
         }
       }
     } else {
-      toReturn[i] = data[i];
+      toReturn[i] = data[i].toString();
     }
-
   }
   return toReturn;
+}
+
+export function removeGroupData(
+  formData: any,
+  index: any,
+  layout: ILayout,
+  groupId: string,
+  repeatingGroupCount: number,
+): any {
+  const result = { ...formData };
+  const groupElement: ILayoutGroup = layout.find((element) => {
+    return element.id === groupId;
+  }) as ILayoutGroup;
+  const groupDataModelBinding = groupElement.dataModelBindings.group;
+  deleteGroupData(result, groupDataModelBinding, index);
+
+  if (index < repeatingGroupCount + 1) {
+    for (let i = index + 1; i <= repeatingGroupCount + 1; i++) {
+      deleteGroupData(result, groupDataModelBinding, i, true);
+    }
+  }
+
+  return result;
+}
+
+function deleteGroupData(formData: any, groupDataModelBinding: string, index: number, shiftData?: boolean) {
+  const prevData = { ...formData };
+  Object.keys(formData).filter((key) => key.startsWith(`${groupDataModelBinding}[${index}]`))
+    .forEach((key) => {
+      // eslint-disable-next-line no-param-reassign
+      delete formData[key];
+      if (shiftData) {
+        const newKey = key.replace(`${groupDataModelBinding}[${index}]`, `${groupDataModelBinding}[${index - 1}]`);
+        // eslint-disable-next-line no-param-reassign
+        formData[newKey] = prevData[key];
+      }
+    });
 }

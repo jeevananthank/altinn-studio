@@ -48,6 +48,11 @@ const styles = {
     lineHeight: 'auto',
     color: '#000000',
   },
+  addComponentText: {
+    marginTop: '2.4rem',
+    color: '#6A6A6A',
+    alignContent: 'center',
+  },
 };
 
 export interface IEditModalContentProps {
@@ -125,6 +130,9 @@ export class EditModalContentComponent extends React.Component<IEditModalContent
   public handleAddOption = () => {
     this.setState((prevState: IEditModalContentState) => {
       const updatedComponent: IFormComponent = (prevState.component);
+      if (!updatedComponent.options) {
+        updatedComponent.options = [];
+      }
       updatedComponent.options.push({
         label: this.props.language.general.label,
         value: this.props.language.general.value,
@@ -138,10 +146,14 @@ export class EditModalContentComponent extends React.Component<IEditModalContent
     }, () => this.props.handleComponentUpdate(this.state.component));
   }
 
-  public handleRemoveOption = (index: number) => {
+  public handleRemoveOption = (index: number | string) => {
     this.setState((prevState: IEditModalContentState) => {
       const updatedComponent: IFormComponent = prevState.component;
-      updatedComponent.options.splice(index, 1);
+      if (index === 'all') {
+        updatedComponent.options = undefined;
+      } else {
+        updatedComponent.options.splice(index as number, 1);
+      }
       return {
         component: {
           ...prevState.component,
@@ -220,9 +232,27 @@ export class EditModalContentComponent extends React.Component<IEditModalContent
     return element?.minOccurs;
   }
 
+  public getXsdDataTypeFromDataModel = (dataBindingName: string): string => {
+    const element: IDataModelFieldElement = this.props.dataModel.find((e: IDataModelFieldElement) => {
+      return e.dataBindingName === dataBindingName;
+    });
+
+    return element?.xsdValueType;
+  }
+
   public handleValidFileEndingsChange = (event: any) => {
     const component = (this.props.component as IFormFileUploaderComponent);
     component.validFileEndings = event.target.value;
+    this.setState({
+      component,
+    });
+    this.props.handleComponentUpdate(component);
+  }
+
+  public handleOptionsIdChange = (event: any) => {
+    const component =
+    (this.props.component as (IFormDropdownComponent | IFormCheckboxComponent | IFormRadioButtonComponent));
+    component.optionsId = event.target.value;
     this.setState({
       component,
     });
@@ -290,27 +320,22 @@ export class EditModalContentComponent extends React.Component<IEditModalContent
       dataModelBinding = {};
     }
     dataModelBinding[key] = selectedDataModelElement;
-    if (this.getMinOccursFromDataModel(selectedDataModelElement) === 0) {
-      this.setState((prevState: IEditModalContentState) => {
-        return {
-          component: {
-            ...prevState.component,
-            required: false,
-            dataModelBindings: dataModelBinding,
-          },
-        };
-      }, () => this.props.handleComponentUpdate(this.state.component));
-    } else {
-      this.setState((prevState: IEditModalContentState) => {
-        return {
-          component: {
-            ...prevState.component,
-            required: true,
-            dataModelBindings: dataModelBinding,
-          },
-        };
-      }, () => this.props.handleComponentUpdate(this.state.component));
+    const modifiedProperties: any = {
+      dataModelBindings: dataModelBinding,
+      required: this.getMinOccursFromDataModel(selectedDataModelElement) !== 0,
+    };
+    if (this.props.component.type === 'Datepicker') {
+      modifiedProperties.timeStamp = this.getXsdDataTypeFromDataModel(selectedDataModelElement) === 'DateTime';
     }
+
+    this.setState((prevState: IEditModalContentState) => {
+      return {
+        component: {
+          ...prevState.component,
+          ...modifiedProperties,
+        },
+      };
+    }, () => this.props.handleComponentUpdate(this.state.component));
   }
 
   public handleToggleAddressSimple = (event: object, checked: boolean) => {
@@ -409,9 +434,10 @@ export class EditModalContentComponent extends React.Component<IEditModalContent
         return (
           <SelectionEdit
             type='checkboxes'
+            key={this.state.component.id}
             component={this.state.component as IFormCheckboxComponent}
             handleAddOption={this.handleAddOption}
-            handleCodeListChanged={this.handleCodeListChange}
+            handleOptionsIdChange={this.handleOptionsIdChange}
             handleDescriptionChange={this.handleDescriptionChange}
             handlePreselectedOptionChange={this.handlePreselectedOptionChange}
             handleRemoveOption={this.handleRemoveOption}
@@ -426,9 +452,10 @@ export class EditModalContentComponent extends React.Component<IEditModalContent
         return (
           <SelectionEdit
             type='radiobuttons'
+            key={this.state.component.id}
             component={this.state.component as IFormRadioButtonComponent}
             handleAddOption={this.handleAddOption}
-            handleCodeListChanged={this.handleCodeListChange}
+            handleOptionsIdChange={this.handleOptionsIdChange}
             handleDescriptionChange={this.handleDescriptionChange}
             handlePreselectedOptionChange={this.handlePreselectedOptionChange}
             handleRemoveOption={this.handleRemoveOption}
@@ -442,76 +469,48 @@ export class EditModalContentComponent extends React.Component<IEditModalContent
       case 'Dropdown': {
         const component: IFormDropdownComponent = this.state.component as IFormDropdownComponent;
         return (
-          <div className='form-group a-form-group mt-2'>
-            <h2 className='a-h4'>
-              {this.props.language.ux_editor.modal_options}
-            </h2>
-            <div className='row align-items-center'>
-              <div className='col-5'>
-                <label className='a-form-label'>
-                  {this.props.language.general.label}
-                </label>
-              </div>
-              <div className='col-5'>
-                <label className='a-form-label'>
-                  {this.props.language.general.value}
-                </label>
-              </div>
-            </div>
-
-            {component.options.map((option, index) => (
-              <div key={index} className='row align-items-center'>
-                <div className='col-5'>
-                  <label htmlFor={`editModal_dropdownlabel-${index}`} className='a-form-label sr-only'>
-                    {this.props.language.ux_editor.modal_text}
-                  </label>
-                  <select
-                    id={`editModal_dropdownlabel-${index}`}
-                    className='custom-select a-custom-select'
-                    onChange={this.handleUpdateOptionLabel.bind(this, index)}
-                    value={option.label}
-                  >
-                    <option key='empty' value=''>
-                      {this.props.language.general.choose_label}
-                    </option>
-                    {this.renderTextResourceOptions()}
-                  </select>
-                </div>
-
-                <div className='col-5'>
-                  <input
-                    onChange={this.handleUpdateOptionValue.bind(this, index)}
-                    value={option.value}
-                    className='form-control'
-                    type='text'
-                  />
-                </div>
-
-                <div className='col-2'>
-                  <button
-                    type='button'
-                    className='a-btn a-btn-icon'
-                    onClick={this.handleRemoveOption.bind(this, index)}
-                  >
-                    <i className='fa fa-circle-exit a-danger ai-left' />
-                  </button>
-                </div>
-              </div>
-            ))}
-
-            <div className='row align-items-center mb-1'>
-              <div className='col-4 col'>
-                <button
-                  type='button'
-                  className='a-btn'
-                  onClick={this.handleAddOption}
-                >
-                  {this.props.language.ux_editor.modal_new_option}
-                </button>
-              </div>
-              <div />
-            </div>
-          </div>
+          <Grid container={true}>
+            <Grid item={true} xs={12}>
+              {renderSelectDataModelBinding(
+                this.props.component.dataModelBindings,
+                this.handleDataModelChange,
+                this.props.language,
+              )}
+              {renderSelectTextFromResources('modal_properties_label_helper',
+                this.handleTitleChange,
+                this.props.textResources,
+                this.props.language,
+                this.props.component.textResourceBindings.title)}
+              {renderSelectTextFromResources('modal_properties_description_helper',
+                this.handleDescriptionChange,
+                this.props.textResources,
+                this.props.language,
+                this.props.component.textResourceBindings.description)}
+            </Grid>
+            <Grid item={true} xs={12}>
+              <AltinnInputField
+                id='modal-properties-code-list-id'
+                onChangeFunction={this.handleOptionsIdChange}
+                inputValue={component.optionsId}
+                inputDescription={getLanguageFromKey(
+                  'ux_editor.modal_properties_code_list_id', this.props.language,
+                )}
+                inputFieldStyling={{ width: '100%', marginBottom: '24px' }}
+                inputDescriptionStyling={{ marginTop: '24px' }}
+              />
+            </Grid>
+            <Typography>
+              <a
+                target='_blank'
+                rel='noopener noreferrer'
+                href='https://altinn.github.io/docs/altinn-studio/app-creation/options/'
+              >
+                {getLanguageFromKey(
+                  'ux_editor.modal_properties_code_list_read_more', this.props.language,
+                )}
+              </a>
+            </Typography>
+          </Grid>
         );
       }
 
@@ -730,7 +729,6 @@ export class EditModalContentComponent extends React.Component<IEditModalContent
           </Grid>
         );
       }
-
       default: {
         return null;
       }
