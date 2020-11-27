@@ -1,41 +1,25 @@
 /* eslint-disable no-param-reassign */
 /* eslint-disable no-restricted-syntax */
-import { IFormDesignerState } from '../reducers/formDesignerReducer';
-// tslint:disable-next-line:no-var-requires
-const uuid = require('uuid/v4');
+import { v4 as uuidv4 } from 'uuid';
 
-export function getParentContainerId(containerId: string, formDesignerState: IFormDesignerState): string {
-  const order = formDesignerState.layout.order;
-  const baseContainerId = Object.keys(formDesignerState.layout.order)[0];
-  for (const containerKey in order) {
-    if (containerKey) {
-      for (const elementId of order[containerKey]) {
-        if (elementId === containerId) {
-          return containerKey;
-        }
-      }
-    }
-  }
-  return baseContainerId;
-}
-
-export function convertFromLayoutToInternalFormat(formLayout: any[]): IFormDesignerLayout {
-  const convertedLayout: IFormDesignerLayout = {
+export function convertFromLayoutToInternalFormat(formLayout: any[]): IFormLayout {
+  const convertedLayout: IFormLayout = {
     containers: {},
     components: {},
     order: {},
+  };
+
+  const baseContainerId: string = uuidv4();
+  convertedLayout.order[baseContainerId] = [];
+  convertedLayout.containers[baseContainerId] = {
+    index: 0,
+    itemType: 'CONTAINER',
   };
 
   if (!formLayout) {
     return convertedLayout;
   }
   formLayout = JSON.parse(JSON.stringify(formLayout));
-  const baseContainerId: string = uuid();
-  convertedLayout.order[baseContainerId] = [];
-  convertedLayout.containers[baseContainerId] = {
-    index: 0,
-    itemType: 'CONTAINER',
-  };
 
   for (const element of formLayout) {
     if (element.type.toLowerCase() !== 'group') {
@@ -55,10 +39,10 @@ export function convertFromLayoutToInternalFormat(formLayout: any[]): IFormDesig
   return convertedLayout;
 }
 
-export function convertInternalToLayoutFormat(internalFormat: IFormDesignerLayout): any[] {
+export function convertInternalToLayoutFormat(internalFormat: IFormLayout): any[] {
   const {
     components, containers, order,
-  } = JSON.parse(JSON.stringify(internalFormat)) as IFormDesignerLayout;
+  } = JSON.parse(JSON.stringify(internalFormat)) as IFormLayout;
 
   const baseContainerId = Object.keys(internalFormat.containers)[0];
   const formLayout = [];

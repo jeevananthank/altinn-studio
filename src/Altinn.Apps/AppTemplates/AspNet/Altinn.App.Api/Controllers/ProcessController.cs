@@ -4,22 +4,28 @@ using System.IO;
 using System.Linq;
 using System.Net;
 using System.Threading.Tasks;
+
 using Altinn.App.Api.Filters;
 using Altinn.App.Common.Process.Elements;
 using Altinn.App.PlatformServices.Helpers;
+using Altinn.App.PlatformServices.Interface;
 using Altinn.App.PlatformServices.Models;
+using Altinn.App.Services.Configuration;
 using Altinn.App.Services.Helpers;
 using Altinn.App.Services.Interface;
 using Altinn.App.Services.Models.Validation;
+
 using Altinn.Authorization.ABAC.Xacml.JsonProfile;
 using Altinn.Common.PEP.Helpers;
 using Altinn.Common.PEP.Interfaces;
 using Altinn.Platform.Storage.Interface.Enums;
 using Altinn.Platform.Storage.Interface.Models;
+
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using Newtonsoft.Json;
 
 namespace Altinn.App.Api.Controllers
@@ -33,13 +39,16 @@ namespace Altinn.App.Api.Controllers
     [AutoValidateAntiforgeryTokenIfAuthCookie]
     public class ProcessController : ControllerBase
     {
-        private const int MAX_ITERATIONS_ALLOWED = 100;
+        private const int MaxIterationsAllowed = 100;
+
         private readonly ILogger<ProcessController> _logger;
         private readonly IInstance _instanceService;
         private readonly IProcess _processService;
         private readonly IAltinnApp _altinnApp;
         private readonly IValidation _validationService;
         private readonly IPDP _pdp;
+        private readonly IEvents _eventsService;
+        private readonly AppSettings _appSettings;
 
         private readonly ProcessHelper processHelper;
 
@@ -52,7 +61,9 @@ namespace Altinn.App.Api.Controllers
             IProcess processService,
             IAltinnApp altinnApp,
             IValidation validationService,
-            IPDP pdp)
+            IPDP pdp,
+            IEvents eventsService,
+            IOptions<AppSettings> appSettings)
         {
             _logger = logger;
             _instanceService = instanceService;
@@ -60,6 +71,8 @@ namespace Altinn.App.Api.Controllers
             _altinnApp = altinnApp;
             _validationService = validationService;
             _pdp = pdp;
+            _eventsService = eventsService;
+            _appSettings = appSettings.Value;
 
             using Stream bpmnStream = _processService.GetProcessDefinition();
             processHelper = new ProcessHelper(bpmnStream);
@@ -209,6 +222,7 @@ namespace Altinn.App.Api.Controllers
                 {
                     return Conflict($"Instance does not have valid info about currentTask");
                 }
+
                 List<string> nextElementIds = processHelper.Process.NextElements(currentTaskId);
 
                 if (nextElementIds.Count == 0)
@@ -311,9 +325,12 @@ namespace Altinn.App.Api.Controllers
                     {
                         Instance changedInstance = await UpdateProcessAndDispatchEvents(instance, nextResult);
 
+                        await RegisterEventWithEventsComponent(changedInstance);
+
                         return Ok(changedInstance.Process);
                     }
                 }
+
                 return Conflict($"Cannot complete/close current task {currentElementId}. The data element(s) assigned to the task are not valid!");
             }
             catch (PlatformHttpException e)
@@ -365,7 +382,7 @@ namespace Altinn.App.Api.Controllers
             [FromRoute] int instanceOwnerPartyId,
             [FromRoute] Guid instanceGuid)
         {
-            Instance instance = null;
+            Instance instance;
 
             try
             {
@@ -430,6 +447,8 @@ namespace Altinn.App.Api.Controllers
                         instance = await UpdateProcessAndDispatchEvents(instance, nextResult);
 
                         currentTaskId = instance.Process.CurrentTask?.ElementId;
+
+                        await RegisterEventWithEventsComponent(instance);
                     }
                     else
                     {
@@ -443,9 +462,9 @@ namespace Altinn.App.Api.Controllers
 
                 counter++;
             }
-            while (instance.Process.EndEvent == null || counter > MAX_ITERATIONS_ALLOWED);
+            while (instance.Process.EndEvent == null || counter > MaxIterationsAllowed);
 
-            if (counter > MAX_ITERATIONS_ALLOWED)
+            if (counter > MaxIterationsAllowed)
             {
                 _logger.LogError($"More than {counter} iterations detected in process. Possible loop. Fix app {org}/{app}'s process definition!");
                 return StatusCode(500, $"More than {counter} iterations detected in process. Possible loop. Fix app process definition!");
@@ -498,6 +517,13 @@ namespace Altinn.App.Api.Controllers
             return StatusCode(500, $"{message}");
         }
 
+        /// <summary>
+        /// Perform calls to the custom App logic.
+        /// </summary>
+        /// <param name="altinnApp">The application core logic.</param>
+        /// <param name="instance">The currently loaded instance.</param>
+        /// <param name="events">The events to trigger.</param>
+        /// <returns>A Task to enable async await.</returns>
         internal static async Task NotifyAppAboutEvents(IAltinnApp altinnApp, Instance instance, List<InstanceEvent> events)
         {
             foreach (InstanceEvent processEvent in events)
@@ -508,7 +534,7 @@ namespace Altinn.App.Api.Controllers
                     {
                         case InstanceEventType.process_StartEvent:
 
-                            break; ;
+                            break;
 
                         case InstanceEventType.process_StartTask:
                             await altinnApp.OnStartProcessTask(processEvent.ProcessInfo?.CurrentTask?.ElementId, instance);
@@ -551,6 +577,7 @@ namespace Altinn.App.Api.Controllers
                 _logger.LogInformation($"// Process Controller // Authorization of moving process forward failed with request: {JsonConvert.SerializeObject(request)}.");
                 return false;
             }
+
             bool authorized = DecisionHelper.ValidatePdpDecision(response.Response, HttpContext.User);
             return authorized;
         }
@@ -572,6 +599,28 @@ namespace Altinn.App.Api.Controllers
             else
             {
                 return ExceptionResponse(e, defaultMessage);
+            }
+        }
+
+        private async Task RegisterEventWithEventsComponent(Instance instance)
+        {
+            if (_appSettings.RegisterEventsWithEventsComponent)
+            {
+                try
+                {
+                    if (!string.IsNullOrWhiteSpace(instance.Process.CurrentTask?.ElementId))
+                    {
+                        await _eventsService.AddEvent($"app.instance.process.movedTo.{instance.Process.CurrentTask.ElementId}", instance);
+                    }
+                    else if (instance.Process.EndEvent != null)
+                    {
+                        await _eventsService.AddEvent("app.instance.process.completed", instance);
+                    }
+                }
+                catch (Exception exception)
+                {
+                    _logger.LogWarning(exception, "Exception when sending event with the Events component.");
+                }
             }
         }
     }

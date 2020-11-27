@@ -1,13 +1,17 @@
-using System.Collections;
+using System.Collections.Generic;
+
 using Altinn.Platform.Profile.Models;
 using Altinn.Platform.Register.Models;
 using Altinn.Platform.Storage.Interface.Models;
+
 using Newtonsoft.Json;
-using Newtonsoft.Json.Linq;
 
 namespace Altinn.App.Services.Models
 {
-    class PDFContext
+    /// <summary>
+    /// Represents a collection of all data required to generate a PDF
+    /// </summary>
+    public class PDFContext
     {
         /// <summary>
         /// Gets or sets the instance
@@ -16,10 +20,16 @@ namespace Altinn.App.Services.Models
         public Instance Instance { get; set; }
 
         /// <summary>
-        /// Gets or sets the form layout
+        /// Gets or sets the form layouts
         /// </summary>
-        [JsonProperty(PropertyName = "formLayout")]
-        public object FormLayout { get; set; }
+        [JsonProperty(PropertyName = "formLayouts")]
+        public Dictionary<string, object> FormLayouts { get; set; }
+
+        /// <summary>
+        /// Gets or sets the layout settings
+        /// </summary>
+        [JsonProperty(PropertyName = "layoutSettings")]
+        public object LayoutSettings { get; set; } 
 
         /// <summary>
         /// Gets or sets the text resources
@@ -49,6 +59,6 @@ namespace Altinn.App.Services.Models
         /// Gets or sets the user profile
         /// </summary>
         [JsonProperty(PropertyName = "userProfile")]
-        public UserProfile UserProfile {get; set; }
+        public UserProfile UserProfile { get; set; }
     }
 }

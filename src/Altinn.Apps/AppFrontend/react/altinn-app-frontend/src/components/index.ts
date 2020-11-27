@@ -11,6 +11,7 @@ import { InputComponent } from './base/InputComponent';
 import { ParagraphComponent } from './base/ParagraphComponent';
 import { RadioButtonContainerComponent } from './base/RadioButtonsContainerComponent';
 import { TextAreaComponent } from './base/TextAreaComponent';
+import { NavigationButtons as NavigationButtonsComponent } from './process-step/NavigationButtons';
 
 export interface IComponent {
   name: string;
@@ -33,7 +34,9 @@ export enum ComponentTypes {
   FileUpload,
   Button,
   Container,
+  // eslint-disable-next-line @typescript-eslint/no-shadow
   AddressComponent,
+  NavigationButtons,
 }
 
 export const textComponents: IComponent[] = [
@@ -65,7 +68,6 @@ export const schemaComponents: IComponent[] = [
     Type: ComponentTypes.Datepicker,
     customProperties: {
       readOnly: false,
-      format: 'DD/MM/YYYY',
       minDate: '1900-01-01T12:00:00.000Z',
       maxDate: '2100-01-01T12:00:00.000Z',
     },
@@ -116,6 +118,11 @@ export const schemaComponents: IComponent[] = [
     name: 'Button',
     Tag: ButtonComponent,
     Type: ComponentTypes.Button,
+  },
+  {
+    name: 'NavigationButtons',
+    Tag: NavigationButtonsComponent,
+    Type: ComponentTypes.NavigationButtons,
   },
 ];
 

@@ -40,7 +40,7 @@ export const disabledInput = {
 
 const styles = {
   gridItem: {
-    marginTop: '24px',
+    marginTop: '18px',
   },
   inputHelper: {
     marginTop: '2.4rem',
@@ -91,17 +91,6 @@ export class EditModalContentComponent extends React.Component<IEditModalContent
     });
   }
 
-  public handleRequiredChange = (e: any): void => {
-    this.setState((prevState: IEditModalContentState) => {
-      return {
-        component: {
-          ...prevState.component,
-          required: e.target.checked,
-        },
-      };
-    });
-  }
-
   public handleTextResourceBindingChange = (e: any, key: string): void => {
     this.setState((prevState: IEditModalContentState) => {
       const updatedComponent = prevState.component;
@@ -134,8 +123,8 @@ export class EditModalContentComponent extends React.Component<IEditModalContent
         updatedComponent.options = [];
       }
       updatedComponent.options.push({
-        label: this.props.language.general.label,
-        value: this.props.language.general.value,
+        label: '',
+        value: '',
       });
       return {
         component: {
@@ -220,7 +209,7 @@ export class EditModalContentComponent extends React.Component<IEditModalContent
 
   public handlePreselectedOptionChange = (event: any): void => {
     const updatedComponent = { ...this.props.component as IFormCheckboxComponent | IFormRadioButtonComponent };
-    updatedComponent.preselectedOptionIndex = event.target.value as number;
+    updatedComponent.preselectedOptionIndex = Number(event.target.value);
     this.props.handleComponentUpdate(updatedComponent);
   }
 
@@ -293,6 +282,30 @@ export class EditModalContentComponent extends React.Component<IEditModalContent
     this.props.handleComponentUpdate(component);
   }
 
+  public handleButtonTypeChange = (selected: any) => {
+    const component = this.props.component;
+    if (selected.value === 'NavigationButtons') {
+      component.type = 'NavigationButtons';
+      component.textResourceBindings.title = undefined;
+      (component as any).textResourceId = undefined;
+      component.customType = undefined;
+      (component as any).showBackButton = true;
+      component.textResourceBindings.next = 'next';
+      component.textResourceBindings.back = 'back';
+    } else if (selected.value === 'Button') {
+      component.type = 'Button';
+      component.textResourceBindings.next = undefined;
+      component.textResourceBindings.back = undefined;
+      (component as any).showPrev = undefined;
+      (component as any).showBackButton = undefined;
+      component.textResourceBindings.title = getLanguageFromKey('ux_editor.modal_properties_button_type_submit', this.props.language);
+    }
+    this.setState({
+      component,
+    });
+    this.props.handleComponentUpdate(component);
+  }
+
   public handleHasCustomFileEndingsChange = (event: any) => {
     const component = (this.props.component as IFormFileUploaderComponent);
     component.hasCustomFileEndings = (event.target.value === 'true');
@@ -308,6 +321,15 @@ export class EditModalContentComponent extends React.Component<IEditModalContent
   public handleReadOnlyChange = (event: object, checked: boolean) => {
     const component = this.props.component;
     component.readOnly = checked;
+    this.setState({
+      component,
+    });
+    this.props.handleComponentUpdate(component);
+  }
+
+  public handleRequiredChange = (event: any, checked: boolean) => {
+    const component = this.props.component;
+    component.required = checked;
     this.setState({
       component,
     });
@@ -389,23 +411,44 @@ export class EditModalContentComponent extends React.Component<IEditModalContent
       case 'Datepicker':
       case 'Input': {
         return (
-          <Grid item={true} xs={12}>
-            {renderSelectDataModelBinding(
-              this.props.component.dataModelBindings,
-              this.handleDataModelChange,
-              this.props.language,
-            )}
-            {renderSelectTextFromResources('modal_properties_label_helper',
-              this.handleTitleChange,
-              this.props.textResources,
-              this.props.language,
-              this.props.component.textResourceBindings.title)}
-            {renderSelectTextFromResources('modal_properties_description_helper',
-              this.handleDescriptionChange,
-              this.props.textResources,
-              this.props.language,
-              this.props.component.textResourceBindings.description)}
-          </Grid>
+          <>
+            <Grid item={true} xs={12}>
+              {renderSelectDataModelBinding(
+                this.props.component.dataModelBindings,
+                this.handleDataModelChange,
+                this.props.language,
+              )}
+              {renderSelectTextFromResources('modal_properties_label_helper',
+                this.handleTitleChange,
+                this.props.textResources,
+                this.props.language,
+                this.props.component.textResourceBindings.title)}
+              {renderSelectTextFromResources('modal_properties_description_helper',
+                this.handleDescriptionChange,
+                this.props.textResources,
+                this.props.language,
+                this.props.component.textResourceBindings.description)}
+            </Grid>
+            <Grid
+              item={true} xs={12}
+              style={styles.gridItem}
+            >
+              <AltinnCheckBox
+                checked={this.state.component.readOnly}
+                onChangeFunction={this.handleReadOnlyChange}
+              />
+              {this.props.language.ux_editor.modal_configure_read_only}
+            </Grid>
+            <Grid
+              item={true} xs={12}
+            >
+              <AltinnCheckBox
+                checked={this.state.component.required}
+                onChangeFunction={this.handleRequiredChange}
+              />
+              {this.props.language.ux_editor.modal_configure_required}
+            </Grid>
+          </>
         );
       }
       case 'Paragraph': {
@@ -445,6 +488,8 @@ export class EditModalContentComponent extends React.Component<IEditModalContent
             handleUpdateOptionLabel={this.handleUpdateOptionLabel}
             handleUpdateOptionValue={this.handleUpdateOptionValue}
             handleDataModelChange={this.handleDataModelChange}
+            handleRequiredChange={this.handleRequiredChange}
+            handleReadOnlyChange={this.handleReadOnlyChange}
           />
         );
       }
@@ -463,6 +508,8 @@ export class EditModalContentComponent extends React.Component<IEditModalContent
             handleUpdateOptionLabel={this.handleUpdateOptionLabel}
             handleUpdateOptionValue={this.handleUpdateOptionValue}
             handleDataModelChange={this.handleDataModelChange}
+            handleRequiredChange={this.handleRequiredChange}
+            handleReadOnlyChange={this.handleReadOnlyChange}
           />
         );
       }
@@ -486,6 +533,25 @@ export class EditModalContentComponent extends React.Component<IEditModalContent
                 this.props.textResources,
                 this.props.language,
                 this.props.component.textResourceBindings.description)}
+            </Grid>
+            <Grid
+              item={true} xs={12}
+              style={styles.gridItem}
+            >
+              <AltinnCheckBox
+                checked={this.state.component.readOnly}
+                onChangeFunction={this.handleReadOnlyChange}
+              />
+              {this.props.language.ux_editor.modal_configure_read_only}
+            </Grid>
+            <Grid
+              item={true} xs={12}
+            >
+              <AltinnCheckBox
+                checked={this.state.component.required}
+                onChangeFunction={this.handleRequiredChange}
+              />
+              {this.props.language.ux_editor.modal_configure_required}
             </Grid>
             <Grid item={true} xs={12}>
               <AltinnInputField
@@ -513,20 +579,25 @@ export class EditModalContentComponent extends React.Component<IEditModalContent
           </Grid>
         );
       }
-
+      case 'NavigationButtons':
       case 'Button': {
+        const types = [
+          { value: 'Button', label: getLanguageFromKey('ux_editor.modal_properties_button_type_submit', this.props.language) },
+          { value: 'NavigationButtons', label: getLanguageFromKey('ux_editor.modal_properties_button_type_navigation', this.props.language) },
+        ];
         return (
           <Grid item={true} xs={12}>
             <Typography style={styles.inputHelper}>
               {getLanguageFromKey('ux_editor.modal_properties_button_type_helper', this.props.language)}
             </Typography>
             <Select
-              styles={disabledInput}
-              value={getLanguageFromKey('ux_editor.modal_properties_button_type_submit', this.props.language)}
+              options={types}
+              value={types.find((element) => element.value === this.state.component.type)}
+              onChange={this.handleButtonTypeChange}
+              selectedElement={this.state.component.type}
               placeholder={getLanguageFromKey('ux_editor.modal_properties_button_type_submit', this.props.language)}
-              isDisabled={true}
             />
-            {renderSelectTextFromResources('modal_properties_button_helper',
+            {this.state.component.type === 'Button' && renderSelectTextFromResources('modal_properties_button_helper',
               this.handleTitleChange,
               this.props.textResources,
               this.props.language,
@@ -710,23 +781,44 @@ export class EditModalContentComponent extends React.Component<IEditModalContent
       }
       case 'TextArea': {
         return (
-          <Grid item={true} xs={12}>
-            {renderSelectDataModelBinding(
-              this.props.component.dataModelBindings,
-              this.handleDataModelChange,
-              this.props.language,
-            )}
-            {renderSelectTextFromResources('modal_properties_label_helper',
-              this.handleTitleChange,
-              this.props.textResources,
-              this.props.language,
-              this.props.component.textResourceBindings.title)}
-            {renderSelectTextFromResources('modal_properties_description_helper',
-              this.handleDescriptionChange,
-              this.props.textResources,
-              this.props.language,
-              this.props.component.textResourceBindings.description)}
-          </Grid>
+          <>
+            <Grid item={true} xs={12}>
+              {renderSelectDataModelBinding(
+                this.props.component.dataModelBindings,
+                this.handleDataModelChange,
+                this.props.language,
+              )}
+              {renderSelectTextFromResources('modal_properties_label_helper',
+                this.handleTitleChange,
+                this.props.textResources,
+                this.props.language,
+                this.props.component.textResourceBindings.title)}
+              {renderSelectTextFromResources('modal_properties_description_helper',
+                this.handleDescriptionChange,
+                this.props.textResources,
+                this.props.language,
+                this.props.component.textResourceBindings.description)}
+            </Grid>
+            <Grid
+              item={true} xs={12}
+              style={styles.gridItem}
+            >
+              <AltinnCheckBox
+                checked={this.state.component.readOnly}
+                onChangeFunction={this.handleReadOnlyChange}
+              />
+              {this.props.language.ux_editor.modal_configure_read_only}
+            </Grid>
+            <Grid
+              item={true} xs={12}
+            >
+              <AltinnCheckBox
+                checked={this.state.component.required}
+                onChangeFunction={this.handleRequiredChange}
+              />
+              {this.props.language.ux_editor.modal_configure_required}
+            </Grid>
+          </>
         );
       }
       default: {

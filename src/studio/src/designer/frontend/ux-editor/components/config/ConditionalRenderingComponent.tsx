@@ -1,6 +1,7 @@
 import * as React from 'react';
 import { connect } from 'react-redux';
-import * as uuid from 'uuid/v1'; // time
+import { v1 as uuidv1 } from 'uuid';
+import { makeGetAllLayoutComponents, makeGetALlLayoutContainers, makeGetFullOrder } from '../../selectors/getLayoutData';
 import { SelectDataModelComponent } from './SelectDataModelComponent';
 
 export interface IConditionalRenderingComponentProps {
@@ -19,7 +20,7 @@ export interface IConditionalRenderingComponentProps {
 class ConditionalRendering extends React.Component<IConditionalRenderingComponentProps, any> {
   constructor(_props: any, _state: any) {
     super(_props, _state);
-    const id = uuid();
+    const id = uuidv1();
     this.state = {
       selectedFunctionNr: null,
       connectionId: null,
@@ -42,7 +43,7 @@ class ConditionalRendering extends React.Component<IConditionalRenderingComponen
   public componentDidMount() {
     if (this.props.connectionId) {
       for (let i = 0; this.props.ruleModelElements.length - 1; i++) {
-        // tslint:disable-next-line:max-line-length
+        // eslint-disable-next-line max-len
         if (this.props.ruleModelElements[i].name === this.props.conditionalRendering[this.props.connectionId].selectedFunction) {
           this.setState({
             selectedFunctionNr: i,
@@ -57,7 +58,7 @@ class ConditionalRendering extends React.Component<IConditionalRenderingComponen
         },
       });
     } else {
-      this.setState({ connectionId: uuid() });
+      this.setState({ connectionId: uuidv1() });
     }
   }
 
@@ -160,7 +161,7 @@ class ConditionalRendering extends React.Component<IConditionalRenderingComponen
    * On init this field is empty and not mapped to a layout compoenent
    */
   public addNewField = () => {
-    const newId = uuid();
+    const newId = uuidv1();
     this.setState({
       ...this.state,
       conditionalRendering: {
@@ -213,11 +214,16 @@ class ConditionalRendering extends React.Component<IConditionalRenderingComponen
   }
 
   public renderCondtionalRenderingTargetOptions = (): JSX.Element[] => {
-    const baseContainerKey = Object.keys(this.props.order)[0];
-    if (!baseContainerKey) {
-      return null;
-    }
-    return this.renderCondtionalRenderingTargetContainerOptions(baseContainerKey, true);
+    const options: JSX.Element[] = [];
+    Object.keys(this.props.order).forEach((key) => {
+      const containerKey = Object.keys(this.props.order)[0];
+      const isBaseContainer = this.props.formLayoutContainers[containerKey]?.Type !== 'Group';
+      const containerOptions = this.renderCondtionalRenderingTargetContainerOptions(key, isBaseContainer);
+      containerOptions.forEach((option) => {
+        options.push(option);
+      });
+    });
+    return options;
   }
 
   public render(): JSX.Element {
@@ -401,13 +407,16 @@ class ConditionalRendering extends React.Component<IConditionalRenderingComponen
 }
 
 const mapStateToProps = (state: IAppState, props: any): any => {
+  const getAllContainers = makeGetALlLayoutContainers();
+  const getAllComponents = makeGetAllLayoutComponents();
+  const getFullOrder = makeGetFullOrder();
   return {
     ruleModelElements: state.appData.ruleModel.model.filter((key: any) => key.type === 'condition'),
     conditionalRendering: state.serviceConfigurations.conditionalRendering,
     selectedFunction: props.selectedFunction,
-    formLayoutComponents: state.formDesigner.layout.components,
-    formLayoutContainers: state.formDesigner.layout.containers,
-    order: state.formDesigner.layout.order,
+    formLayoutComponents: getAllComponents(state),
+    formLayoutContainers: getAllContainers(state),
+    order: getFullOrder(state),
     language: state.appData.language.language,
   };
 };

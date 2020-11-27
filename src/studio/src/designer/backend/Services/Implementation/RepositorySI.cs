@@ -8,6 +8,7 @@ using System.Xml;
 using System.Xml.Linq;
 using Altinn.Platform.Storage.Interface.Models;
 using Altinn.Studio.Designer.Configuration;
+using Altinn.Studio.Designer.Enums;
 using Altinn.Studio.Designer.Factories.ModelFactory;
 using Altinn.Studio.Designer.Helpers;
 using Altinn.Studio.Designer.Helpers.Extensions;
@@ -96,8 +97,10 @@ namespace Altinn.Studio.Designer.Services.Implementation
             CopyFolderToApp(serviceMetadata.Org, serviceMetadata.RepositoryName, _generalSettings.AppLocation, _settings.GetAppFolderName());
 
             // CopyFolderToApp(serviceMetadata.Org, serviceMetadata.RepositoryName, _generalSettings.IntegrationTestsLocation, _settings.GetIntegrationTestsFolderName());
+            CopyFileToApp(serviceMetadata.Org, serviceMetadata.RepositoryName, _settings.DockerfileFileName);
             CopyFileToApp(serviceMetadata.Org, serviceMetadata.RepositoryName, _settings.AppSlnFileName);
             CopyFileToApp(serviceMetadata.Org, serviceMetadata.RepositoryName, _settings.GitIgnoreFileName);
+            CopyFileToApp(serviceMetadata.Org, serviceMetadata.RepositoryName, _settings.DockerIgnoreFileName);
             UpdateAuthorizationPolicyFile(serviceMetadata.Org, serviceMetadata.RepositoryName);
             return true;
         }
@@ -566,24 +569,35 @@ namespace Altinn.Studio.Designer.Services.Implementation
 
             return filedata;
         }
-
-        /// <summary>
-        /// Get the Json form model from disk
-        /// </summary>
-        /// <param name="org">Unique identifier of the organisation responsible for the app.</param>
-        /// <param name="app">Application identifier which is unique within an organisation.</param>
-        /// <returns>Returns the json object as a string</returns>
-        public string GetJsonFormLayout(string org, string app)
+        
+        /// <inheritdoc/>
+        public string GetJsonFormLayouts(string org, string app)
         {
-            string filePath = _settings.GetFormLayoutPath(org, app, AuthenticationHelper.GetDeveloperUserName(_httpContextAccessor.HttpContext));
-            string fileData = null;
+            Dictionary<string, object> layouts = new Dictionary<string, dynamic>();
+            string developer = AuthenticationHelper.GetDeveloperUserName(_httpContextAccessor.HttpContext);
 
-            if (File.Exists(filePath))
+            // If FormLayout.json exists in app/ui => move it to app/ui/layouts (for backwards comp)
+            string filedata = string.Empty;
+            string formLayoutPath = _settings.GetFormLayoutPath(org, app, developer);
+            if (File.Exists(formLayoutPath))
             {
-                fileData = File.ReadAllText(filePath, Encoding.UTF8);
+                filedata = File.ReadAllText(formLayoutPath, Encoding.UTF8);
+                DeleteOldFormLayoutJson(org, app, developer);
+                SaveFormLayout(org, app, "FormLayout",  filedata);
             }
 
-            return fileData;
+            string formLayoutsPath = _settings.GetFormLayoutsPath(org, app, developer);
+            if (Directory.Exists(formLayoutsPath))
+            {
+                foreach (string file in Directory.GetFiles(formLayoutsPath))
+                {
+                    string data = File.ReadAllText(file, Encoding.UTF8);
+                    string name = file.Replace(_settings.GetFormLayoutsPath(org, app, developer), string.Empty).Replace(".json", string.Empty);
+                    layouts.Add(name, JsonConvert.DeserializeObject<object>(data));
+                }
+            }
+
+            return JsonConvert.SerializeObject(layouts);
         }
 
         /// <summary>
@@ -673,20 +687,64 @@ namespace Altinn.Studio.Designer.Services.Implementation
             return fileData;
         }
 
-        /// <summary>
-        /// Save the JSON form layout to disk
-        /// </summary>
-        /// <param name="org">Unique identifier of the organisation responsible for the app.</param>
-        /// <param name="app">Application identifier which is unique within an organisation.</param>
-        /// <param name="resource">The content of the resource file</param>
-        /// <returns>A boolean indicating if saving was ok</returns>
-        public bool SaveJsonFormLayout(string org, string app, string resource)
+        /// <inheritdoc />
+        public bool SaveFormLayout(string org, string app, string formLayout, string content)
         {
-            string filePath = _settings.GetFormLayoutPath(org, app, AuthenticationHelper.GetDeveloperUserName(_httpContextAccessor.HttpContext));
+            string filePath = _settings.GetFormLayoutPath(org, app, AuthenticationHelper.GetDeveloperUserName(_httpContextAccessor.HttpContext), formLayout);
             new FileInfo(filePath).Directory.Create();
-            File.WriteAllText(filePath, resource, Encoding.UTF8);
-
+            File.WriteAllText(filePath, content, Encoding.UTF8);
             return true;
+        }
+        
+        /// <inheritdoc />
+        public bool UpdateFormLayoutName(string org, string app, string currentName, string newName)
+        {   
+            string developer = AuthenticationHelper.GetDeveloperUserName(_httpContextAccessor.HttpContext);
+            string curFilePath = _settings.GetFormLayoutPath(org, app, developer, currentName);
+            string newFilePath = _settings.GetFormLayoutPath(org, app, developer, newName);
+            if (File.Exists(newFilePath) || !File.Exists(curFilePath))
+            {
+                return false;
+            }
+
+            File.Move(curFilePath, newFilePath);
+            return true;
+        }
+
+        /// <inheritdoc />
+        public bool DeleteFormLayout(string org, string app, string formLayout)
+        {
+            string filePath = _settings.GetFormLayoutPath(org, app, AuthenticationHelper.GetDeveloperUserName(_httpContextAccessor.HttpContext), formLayout);
+            bool deleted = false;
+            if (File.Exists(filePath))
+            {
+                File.Delete(filePath);
+                deleted = true;
+            }
+
+            return deleted;
+        }
+        
+        /// <inheritdoc />
+        public bool SaveLayoutSettings(string org, string app, string setting)
+        {
+            string filePath = _settings.GetLayoutSettingPath(org, app, AuthenticationHelper.GetDeveloperUserName(_httpContextAccessor.HttpContext));
+            new FileInfo(filePath).Directory.Create();
+            File.WriteAllText(filePath, setting, Encoding.UTF8);
+            return true;
+        }
+
+        /// <inheritdoc />
+        public string GetLayoutSettings(string org, string app)
+        {
+            string filePath = _settings.GetLayoutSettingPath(org, app, AuthenticationHelper.GetDeveloperUserName(_httpContextAccessor.HttpContext));
+            string filedata = null;
+            if (File.Exists(filePath))
+            {
+                filedata = File.ReadAllText(filePath, Encoding.UTF8);
+            }
+
+            return filedata;
         }
 
         /// <summary>
@@ -1707,6 +1765,52 @@ namespace Altinn.Studio.Designer.Services.Implementation
             return UpdateApplication(org, app, appMetadata);
         }
 
+        /// <summary>
+        /// Create a new file in blob storage.
+        /// </summary>
+        /// <param name="org">The application owner id.</param>
+        /// <param name="repo">The repository</param>
+        /// <param name="filepath">The filepath</param>
+        /// <param name="stream">Data to be written to blob storage.</param>
+        /// <returns>The size of the blob.</returns>
+        public async Task WriteData(string org, string repo, string filepath, Stream stream)
+        {
+            string repopath = _settings.GetServicePath(org, repo, AuthenticationHelper.GetDeveloperUserName(_httpContextAccessor.HttpContext));
+
+            stream.Seek(0, SeekOrigin.Begin);
+            using (FileStream outputFileStream = new FileStream(repopath + filepath, FileMode.Create))
+            {
+                await stream.CopyToAsync(outputFileStream);
+                await outputFileStream.FlushAsync();
+            }
+        }
+
+        /// <summary>
+        /// Reads a data file from blob storage
+        /// </summary>
+        /// <param name="org">The application owner id.</param>
+        /// <param name="repo">The repository</param>
+        /// <param name="path">Path to be file to read blob storage.</param>
+        /// <returns>The stream with the file</returns>
+        public async Task<Stream> ReadData(string org, string repo, string path)
+        {
+            string repopath = _settings.GetServicePath(org, repo, AuthenticationHelper.GetDeveloperUserName(_httpContextAccessor.HttpContext));
+            Stream fs = File.OpenRead(repopath + path);
+            return await Task.FromResult(fs);
+        }
+
+        /// <summary>
+        /// Deletes the data element permanently
+        /// </summary>
+        /// <param name="org">The application owner id.</param>
+        /// <param name="repo">The repository</param>
+        /// <param name="path">Path to the file to delete.</param>
+        public void DeleteData(string org, string repo, string path)
+        {
+            string repopath = _settings.GetServicePath(org, repo, AuthenticationHelper.GetDeveloperUserName(_httpContextAccessor.HttpContext));
+            File.Delete(repopath + path);
+        }
+
         private static string ViewResourceKey(string viewName)
         {
             return $"view.{viewName}";
@@ -1788,6 +1892,87 @@ namespace Altinn.Studio.Designer.Services.Implementation
             return filedata;
         }
 
+        /// <inheritdoc/>
+        public List<FileSystemObject> GetContents(string org, string repository, string path = "")
+        {
+            List<FileSystemObject> contents = new List<FileSystemObject>();
+            string repositoryPath = _settings.GetServicePath(org, repository, AuthenticationHelper.GetDeveloperUserName(_httpContextAccessor.HttpContext));
+            string contentPath = Path.Combine(repositoryPath, path);
+
+            // repository was not found
+            if (!Directory.Exists(repositoryPath))
+            {
+                return null;
+            }
+
+            if (File.Exists(contentPath))
+            {
+                FileSystemObject f = GetFileSystemObjectForFile(contentPath);
+                contents.Add(f);
+            }
+            else if (Directory.Exists(contentPath))
+            {
+                string[] dirs = Directory.GetDirectories(contentPath);
+                foreach (string directoryPath in dirs)
+                {
+                    FileSystemObject d = GetFileSystemObjectForDirectory(directoryPath);
+                    contents.Add(d);
+                }
+
+                string[] files = Directory.GetFiles(contentPath);
+                foreach (string filePath in files)
+                {
+                    FileSystemObject f = GetFileSystemObjectForFile(filePath);
+                    contents.Add(f);
+                }
+            }
+
+            // setting all paths relative to repository
+            contents.All(c =>
+            {
+                c.Path = Path.GetRelativePath(repositoryPath, c.Path).Replace("\\", "/");
+                return true;
+            });
+
+            return contents;
+        }
+
+        private FileSystemObject GetFileSystemObjectForFile(string path)
+        {
+            FileInfo fi = new FileInfo(path);
+            string encoding;
+
+            using (StreamReader sr = new StreamReader(path))
+            {
+                encoding = sr.CurrentEncoding.EncodingName;
+            }
+
+            FileSystemObject fso = new FileSystemObject()
+            {
+                Type = FileSystemObjectType.File.ToString(),
+                Name = fi.Name,
+                Encoding = encoding,
+                Path = fi.FullName,
+            };
+
+            return fso;
+        }
+
+        private FileSystemObject GetFileSystemObjectForDirectory(string path)
+        {
+            DirectoryInfo di = new DirectoryInfo(path);
+            FileSystemObject fso = new FileSystemObject()
+            {
+                Type = FileSystemObjectType.Dir.ToString(),
+                Name = di.Name,
+                Path = path,
+                Content = null,
+                Encoding = null
+            };
+
+            return fso;
+        }
+
         private string GetModelName(string org, string app)
         {
             Application application = GetApplication(org, app);
@@ -1802,6 +1987,15 @@ namespace Altinn.Studio.Designer.Services.Implementation
             }
 
             return dataTypeId;
+        }
+
+        private void DeleteOldFormLayoutJson(string org, string app, string developer)
+        {
+            string path = _settings.GetFormLayoutPath(org, app, developer);
+            if (File.Exists(path))
+            {
+                File.Delete(path);
+            }
         }
 
         private class ResourceWrapper

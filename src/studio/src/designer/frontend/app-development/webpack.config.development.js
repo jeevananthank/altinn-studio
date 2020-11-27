@@ -1,7 +1,8 @@
 const HtmlWebPackPlugin = require('html-webpack-plugin');
 const MiniCssExtractPlugin = require('mini-css-extract-plugin');
-const CheckerPlugin = require('awesome-typescript-loader').CheckerPlugin
 const MonacoPlugin = require('monaco-editor-webpack-plugin');
+const ForkTsCheckerNotifierWebpackPlugin = require('fork-ts-checker-notifier-webpack-plugin');
+const ForkTsCheckerWebpackPlugin = require('fork-ts-checker-webpack-plugin');
 const path = require('path');
 
 module.exports = {
@@ -22,6 +23,7 @@ module.exports = {
     alias: {
       // SHARED
       "app-shared": path.resolve(__dirname, "../shared/"),
+      "@altinn/schema-editor": path.resolve(__dirname, "../packages/schema-editor/"),
       //"ux-editor": path.resolve(__dirname, "../ux-editor/")
     }
   },
@@ -62,9 +64,6 @@ module.exports = {
         test: /\.css$/,
         use: [{
             loader: MiniCssExtractPlugin.loader,
-            options: {
-              url: false
-            }
           },
           {
             loader: "css-loader",
@@ -76,7 +75,9 @@ module.exports = {
       },
       {
         test: /\.tsx?/,
-        loader: "awesome-typescript-loader",
+        use: [
+          {loader: "ts-loader", options: { transpileOnly: true } }
+        ]
       },
       {
         enforce: "pre",
@@ -86,6 +87,8 @@ module.exports = {
     ],
   },
   plugins: [
+    new ForkTsCheckerWebpackPlugin(),
+    new ForkTsCheckerNotifierWebpackPlugin({ title: 'TypeScript', excludeWarnings: false }),
     new HtmlWebPackPlugin({
       template: './public/index.html',
       filename: 'index.html'
@@ -93,7 +96,6 @@ module.exports = {
     new MiniCssExtractPlugin({
       filename: "app-development.css",
     }),
-    new CheckerPlugin(),
     new MonacoPlugin({
       output: path.join('../app-development', 'js', 'react'),
       languages: ['typescript', 'javascript', 'csharp']

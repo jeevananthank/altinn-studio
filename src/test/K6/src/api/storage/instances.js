@@ -3,9 +3,17 @@ import * as config from "../../config.js";
 import * as header from "../../buildrequestheaders.js"
 import { printResponseToConsole } from "../../errorcounter.js";
 
-//Api call to Storage:Instances to create an app instance and returns response
-export function postInstance(altinnStudioRuntimeCookie, partyId, appOwner, level2App, instanceJson) {
-    var appId = appOwner + "/" + level2App;
+/**
+ * Api call to Storage:Instances to create an app instance and returns response
+ * @param {*} altinnStudioRuntimeCookie token value to be sent in header for authentication
+ * @param {*} partyId party id of the user to whom instance is to be created
+ * @param {*} appOwner app owner name
+ * @param {*} appName app name
+ * @param {JSON} instanceJson instance json metadata sent in request body
+ * @returns {JSON} Json object including response headers, body, timings
+ */
+export function postInstance(altinnStudioRuntimeCookie, partyId, appOwner, appName, instanceJson) {
+    var appId = appOwner + "/" + appName;
     var endpoint = config.platformStorage["instances"] + "?appId=" + appId;
     var params = header.buildHearderWithRuntimeandJson(altinnStudioRuntimeCookie, "platform");
     var requestbody = JSON.stringify(buildInstanceInputJson(instanceJson, appId, partyId));
@@ -54,7 +62,6 @@ export function getArchivedInstancesByOrgAndApp(altinnStudioRuntimeCookie, appOw
     //find archived instances of the app that has created date > createdDateTime
     var endpoint = config.platformStorage["instances"] + "?created=gt:" + createdDateTime + "&org=" + appOwner + "&appId=" + appOwner + "/" + appName + "&process.isComplete=" + isArchived;
     var params = header.buildHearderWithRuntime(altinnStudioRuntimeCookie, "platform");
-    params.timeout = 120000;
     return http.get(endpoint, params);
 };
 
@@ -163,4 +170,15 @@ function buildArrayWithHardDeletedInstanceIds(instancesArray) {
         };
     };
     return harDeletedInstances;
+};
+
+//Api call to Storage:Instances to update the sub status of an instance and return response
+export function putUpdateSubStatus(altinnStudioRuntimeCookie, partyId, instanceId, statusLabel, statusDescription) {
+    var endpoint = config.buildStorageUrls(partyId, instanceId, "", "substatus");
+    var params = header.buildHearderWithRuntimeandJson(altinnStudioRuntimeCookie, "platform");
+    var requestBody = JSON.parse("{}");
+    requestBody.label = statusLabel;
+    requestBody.description = statusDescription;
+    requestBody = JSON.stringify(requestBody);
+    return http.put(endpoint, requestBody, params);
 };

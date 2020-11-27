@@ -1,5 +1,5 @@
-import { IRepeatingGroups } from 'src/types';
-import { ILayout, ILayoutComponent, ILayoutGroup } from '../features/form/layout';
+import { IRepeatingGroups, ILayoutNavigation } from 'src/types';
+import { ILayout, ILayoutComponent, ILayoutGroup, ILayouts } from '../features/form/layout';
 
 /*
 * Returns the layout element with the given id, or undefined if no such element exists
@@ -40,9 +40,31 @@ export function getRepeatingGroups(formLayout: [ILayoutComponent | ILayoutGroup]
             repeatingGroups[groupElement.id] = { count };
           }
         } else {
-          repeatingGroups[groupElement.id] = { count: 0 };
+          repeatingGroups[groupElement.id] = { count: -1 };
         }
       }
     });
   return repeatingGroups;
+}
+
+export function getNextView(navOptions: ILayoutNavigation, layouts: ILayouts, currentView: string, goBack?: boolean) {
+  let result;
+  if (navOptions) {
+    if (goBack && navOptions.previous) {
+      return navOptions.previous;
+    }
+
+    if (!goBack && navOptions.next) {
+      return navOptions.next;
+    }
+  }
+
+  if (layouts) {
+    const layoutIds = Object.keys(layouts);
+    const currentViewIndex = layoutIds.indexOf(currentView);
+    const newViewIndex = goBack ? currentViewIndex - 1 : currentViewIndex + 1;
+    result = layoutIds[newViewIndex];
+  }
+
+  return result;
 }

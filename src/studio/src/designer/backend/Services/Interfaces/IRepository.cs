@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.IO;
 using System.Threading.Tasks;
 using System.Xml.Linq;
 using Altinn.Platform.Storage.Interface.Models;
@@ -349,12 +350,12 @@ namespace Altinn.Studio.Designer.Services.Interfaces
         byte[] GetServiceResource(string org, string app, string resource);
 
         /// <summary>
-        /// Get the Json form model from disk
+        /// Get the form layouts from disk
         /// </summary>
         /// <param name="org">Unique identifier of the organisation responsible for the app.</param>
         /// <param name="app">Application identifier which is unique within an organisation.</param>
         /// <returns>Returns the json object as a string</returns>
-        string GetJsonFormLayout(string org, string app);
+        string GetJsonFormLayouts(string org, string app);
 
         /// <summary>
         /// Get the Json third party components from disk
@@ -377,9 +378,46 @@ namespace Altinn.Studio.Designer.Services.Interfaces
         /// </summary>
         /// <param name="org">Unique identifier of the organisation responsible for the app.</param>
         /// <param name="app">Application identifier which is unique within an organisation.</param>
-        /// <param name="resource">The content of the resource file</param>
+        /// <param name="formLayout">The form layout name</param>
+        /// <param name="content">The content of the resource file</param>
         /// <returns>A boolean indicating if saving was ok</returns>
-        bool SaveJsonFormLayout(string org, string app, string resource);
+        bool SaveFormLayout(string org, string app, string formLayout, string content);
+
+        /// <summary>
+        /// Updates a formlayout json name
+        /// </summary>
+        /// <param name="org">Unique identifier of the organisation responsible for the app.</param>
+        /// <param name="app">Application identifier which is unique within an organisation.</param>
+        /// <param name="currentName">Current form layout name</param>
+        /// <param name="newName">The new form layout name</param>
+        /// <returns>A boolean indicating if updating was ok</returns>
+        bool UpdateFormLayoutName(string org, string app, string currentName, string newName);
+
+        /// <summary>
+        /// Removes a form layout from disk
+        /// </summary>
+        /// <param name="org">Unique identifier of the organisation responsible for the app.</param>
+        /// <param name="app">Application identifier which is unique within an organisation.</param>
+        /// <param name="formLayout">The form layout to be deleted</param>
+        /// <returns>A boolean indicating if deleting was ok</returns>
+        bool DeleteFormLayout(string org, string app, string formLayout);
+
+        /// <summary>
+        /// Saves a layout setting file on disk
+        /// </summary>
+        /// <param name="org">Unique identifier of the organisation responsible for the app.</param>
+        /// <param name="app">Application identifier which is unique within an organisation.</param>
+        /// <param name="setting">The content of the setting file</param>
+        /// <returns>A boolean indicating if save was ok</returns>
+        bool SaveLayoutSettings(string org, string app, string setting);
+
+        /// <summary>
+        /// Gets the layout settings
+        /// </summary>
+        /// <param name="org">Unique identifier of the organisation responsible for the app.</param>
+        /// <param name="app">Application identifier which is unique within an organisation.</param>
+        /// <returns>The content as string</returns>
+        string GetLayoutSettings(string org, string app);
 
         /// <summary>
         /// Save the JSON third party components to disk
@@ -488,5 +526,37 @@ namespace Altinn.Studio.Designer.Services.Interfaces
         /// <param name="dataModelName">the data model name</param>
         /// <returns></returns>
         string GetPrefillJson(string org, string app, string dataModelName = "ServiceModel");
+
+        /// <summary>
+        /// Create a new file in blob storage.
+        /// </summary>
+        /// <param name="org">The application owner id.</param>
+        /// <param name="repo">The repository</param>
+        /// <param name="filepath">The filepath</param>
+        /// <param name="stream">Data to be written to blob storage.</param>
+        /// <returns>The size of the blob.</returns>
+        Task WriteData(string org, string repo, string filepath, Stream stream);
+
+        /// <summary>
+        /// Reads a data file from blob storage
+        /// </summary>
+        /// <param name="org">The application owner id.</param>
+        /// <param name="repo">The repository</param>
+        /// <param name="path">Path to be file to read blob storage.</param>
+        /// <returns>The stream with the file</returns>
+        Task<Stream> ReadData(string org, string repo, string path);
+
+        /// <summary>
+        /// Deletes the data element permanently
+        /// </summary>
+        /// <param name="org">The application owner id.</param>
+        /// <param name="repo">The repository</param>
+        /// <param name="path">Path to the file to delete.</param>
+        void DeleteData(string org, string repo, string path);
+
+        /// <summary>
+        /// Lists the content of a repository
+        /// </summary>
+        List<FileSystemObject> GetContents(string org, string repository, string path = "");
     }
 }

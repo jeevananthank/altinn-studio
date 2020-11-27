@@ -1,4 +1,3 @@
-import { ComponentTypes } from '../components';
 import { IAppDataState } from '../reducers/appDataReducer';
 import { IErrorState } from '../reducers/errorReducer';
 import { IFormDesignerState } from '../reducers/formDesignerReducer';
@@ -45,11 +44,12 @@ declare global {
   }
 
   export interface ICreateFormContainer {
+    index?: number;
+    itemType?: string;
     dataModelBindings?: IDataModelBindings;
     maxCount?: number;
-    index?: number;
-    hidden?: boolean;
-    itemType: string;
+    textResourceBindings?: ITextResourceBindings;
+    tableHeaders?: string[];
   }
 
   export interface ITextResourceBindings {
@@ -58,7 +58,6 @@ declare global {
 
   export interface ICreateFormComponent {
     component?: string;
-    componentType: ComponentTypes;
     itemType?: string;
     type?: string;
     name?: string;
@@ -165,6 +164,14 @@ declare global {
   }
 
   export interface IFormDesignerLayout {
+    layouts: IFormLayouts;
+  }
+
+  export interface IFormLayouts {
+    [id: string]: IFormLayout;
+  }
+
+  export interface IFormLayout {
     components: IFormDesignerComponent;
     containers: IFormDesignerContainer;
     order: IFormLayoutOrder;
@@ -246,4 +253,6 @@ declare global {
     key: string;
     dataSource: string;
   }
+
+  export type LogicMode = 'Calculation' | 'Dynamics' | 'Validation' | null;
 }

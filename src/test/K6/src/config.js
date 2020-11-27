@@ -65,6 +65,12 @@ export var platformStorage = {
     "messageBoxInstances": "https://platform." + baseUrl + "/storage/api/v1/sbl/instances",
 };
 
+//Platform events
+export var platformEvents = {
+    "events": "https://platform." + baseUrl + "/events/api/v1/app/",
+    "eventsByParty": "https://platform." + baseUrl + "/events/api/v1/app/party/"
+};
+
 //Function to build endpoints in storage with instanceOwnerId, instanceId, dataId, type
 //and returns the endpoint
 export function buildStorageUrls(instanceOwnerId, instanceId, dataId, type) {
@@ -93,6 +99,9 @@ export function buildStorageUrls(instanceOwnerId, instanceId, dataId, type) {
             break;
         case "readstatus":
             value = platformStorage["instances"] + "/" + instanceOwnerId + "/" + instanceId + "/readstatus";
+            break;
+        case "substatus":
+            value = platformStorage["instances"] + "/" + instanceOwnerId + "/" + instanceId + "/substatus";
             break;
     };
     return value;
@@ -125,6 +134,15 @@ export function buildAppApiUrls(instanceOwnerId, instanceId, dataId, type) {
             break;
         case "process":
             value = "/instances/" + instanceOwnerId + "/" + instanceId + "/process";
+            break;
+        case "complete":
+            value = "/instances/" + instanceOwnerId + "/" + instanceId + "/complete";
+            break;
+        case "substatus":
+            value = "/instances/" + instanceOwnerId + "/" + instanceId + "/substatus";
+            break;
+        case "completeprocess":
+            value = "/instances/" + instanceOwnerId + "/" + instanceId + "/process/completeprocess";
             break;
     };
     return value;

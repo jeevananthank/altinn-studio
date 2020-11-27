@@ -147,3 +147,23 @@ export interface IParty {
   organisation?: IOrganisation;
   childParties: IParty[];
 }
+
+export interface ILayoutSettings {
+  pages: IPagesSettings;
+}
+
+export interface IPagesSettings {
+  order: [];
+}
+
+export interface IRepository {
+  name: string;
+  full_name: string;
+  owner: IUser
+}
+
+export interface IUser
+{
+  avatar_url: string;
+  login: string;
+}

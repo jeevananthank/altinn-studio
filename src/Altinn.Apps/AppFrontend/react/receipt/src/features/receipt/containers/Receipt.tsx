@@ -1,17 +1,19 @@
-import { createStyles, WithStyles, withStyles } from '@material-ui/core';
+import { createStyles, WithStyles, Grid, withStyles, createMuiTheme } from '@material-ui/core';
 import useMediaQuery from '@material-ui/core/useMediaQuery';
 import Axios from 'axios';
 import * as React from 'react';
 import { getLanguageFromCode } from 'altinn-shared/language';
-import { AltinnContentLoader, AltinnModal, AltinnAppHeader, AltinnReceipt } from 'altinn-shared/components';
-import theme from 'altinn-shared/theme/altinnStudioTheme';
+import { AltinnContentLoader, AltinnModal, AltinnAppHeader, AltinnReceipt, AltinnSubstatusPaper } from 'altinn-shared/components';
 import { IApplication, IAttachment, IInstance, IParty, IProfile, IExtendedInstance, ITextResource } from 'altinn-shared/types';
 import { getCurrentTaskData } from 'altinn-shared/utils/applicationMetaDataUtils';
-import { mapInstanceAttachments, getAttachmentGroupings } from 'altinn-shared/utils/attachmentsUtils';
-import { getLanguageFromKey } from 'altinn-shared/utils/language';
+import { mapInstanceAttachments, getAttachmentGroupings, getInstancePdf } from 'altinn-shared/utils/attachmentsUtils';
+import { getLanguageFromKey, getTextResourceByKey } from 'altinn-shared/utils/language';
 import { returnUrlToMessagebox } from 'altinn-shared/utils/urlHelper';
+import AltinnReceiptTheme from 'altinn-shared/theme/altinnReceiptTheme';
 import { getInstanceMetaDataObject } from '../../../utils/receipt';
 import { altinnOrganisationsUrl, getApplicationMetadataUrl, getUserUrl, getExtendedInstanceUrl, getTextResourceUrl } from '../../../utils/urlHelper';
+
+const theme = createMuiTheme(AltinnReceiptTheme);
 
 const styles = () => createStyles({
   body: {
@@ -19,6 +21,15 @@ const styles = () => createStyles({
     paddingRight: '96px !important',
     '@media only print': {
       paddingLeft: '48px !important',
+    },
+  },
+  substatus: {
+    maxWidth: '875px',
+    [theme.breakpoints.down('sm')]: {
+      width: '95%',
+    },
+    [theme.breakpoints.up('md')]: {
+      width: '80%',
     },
   },
 });
@@ -32,6 +43,7 @@ function Receipt(props: WithStyles<typeof styles>) {
   const [language, setLanguage] = React.useState(null);
   const [attachments, setAttachments] = React.useState<IAttachment[]>(null);
   const [textResources, setTextResources] = React.useState<ITextResource[]>(null);
+  const [pdf, setPdf] = React.useState<IAttachment>(null);
   const isPrint = useMediaQuery('print');
 
   const fetchInstanceAndParty = async () => {
@@ -93,7 +105,7 @@ function Receipt(props: WithStyles<typeof styles>) {
   };
 
   const getTitle = (): string => {
-    const applicationTitle = application ? application.title.nb : '';
+    const applicationTitle = getTextResourceByKey('ServiceName', textResources);
     return `${applicationTitle} ${getLanguageFromKey('receipt_platform.is_sent', language)}`;
   };
 
@@ -109,6 +121,7 @@ function Receipt(props: WithStyles<typeof styles>) {
     if (instance && application) {
       const defaultElement = getCurrentTaskData(application, instance);
       setAttachments(mapInstanceAttachments(instance.data, defaultElement.id, true));
+      setPdf(getInstancePdf(instance.data, true));
     }
     if (!application && instance) {
       fetchApplication();
@@ -136,13 +149,26 @@ function Receipt(props: WithStyles<typeof styles>) {
   }, [user]);
 
   return (
-    <>
+    <Grid
+      container={true}
+      direction='column'
+      justify='center'
+      alignItems='center'
+    >
       <AltinnAppHeader
         logoColor={theme.altinnPalette.primary.blueDarker}
         headerBackgroundColor={theme.altinnPalette.primary.blue}
         party={party || {} as IParty}
         userParty={user ? user.party : {} as IParty}
       />
+      {instance?.status?.substatus &&
+        <Grid item={true} className={props.classes.substatus}>
+          <AltinnSubstatusPaper
+            label={getTextResourceByKey(instance.status.substatus.label, textResources)}
+            description={getTextResourceByKey(instance.status.substatus.description, textResources)}
+          />
+        </Grid>
+      }
       <AltinnModal
         classes={props.classes}
         isOpen={true}
@@ -164,10 +190,11 @@ function Receipt(props: WithStyles<typeof styles>) {
             attachmentGroupings={getAttachmentGroupings(attachments, application, textResources)}
             instanceMetaDataObject={getInstanceMetaDataObject(instance, party, language, organisations, application)}
             titleSubmitted={getLanguageFromKey('receipt_platform.sent_content', language)}
+            pdf={pdf ? [pdf] : null}
           />
         }
       </AltinnModal>
-    </>
+    </Grid>
   );
 }
 

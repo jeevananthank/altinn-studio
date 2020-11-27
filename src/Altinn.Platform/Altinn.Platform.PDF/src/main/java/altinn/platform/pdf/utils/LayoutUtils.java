@@ -1,9 +1,6 @@
 package altinn.platform.pdf.utils;
 
-import altinn.platform.pdf.models.FormLayoutElement;
-import altinn.platform.pdf.models.Instance;
-import altinn.platform.pdf.models.TextResourceBindings;
-import altinn.platform.pdf.models.TextResources;
+import altinn.platform.pdf.models.*;
 import org.apache.pdfbox.pdmodel.common.PDRectangle;
 import org.apache.pdfbox.pdmodel.font.PDFont;
 import org.w3c.dom.Document;
@@ -57,11 +54,23 @@ public class LayoutUtils {
         height += (leading - fontSize);
       }
     } else {
-      String value = FormDataUtils.getFormDataByKey(element.getDataModelBindings().get("simpleBinding"), formData);
+      String value = FormUtils.getFormDataByKey(element.getDataModelBindings().get("simpleBinding"), formData);
       float rectHeight = TextUtils.getHeightNeededForTextBox(value, font, fontSize, width, leading);
       PDRectangle rect = new PDRectangle(0, 0, width, rectHeight);
       height += rect.getHeight();
     }
     return height;
+  }
+
+  /**
+   * Check if page should be included in the pdf
+   * @param layoutKey key the page
+   * @param layoutSettings layoutSettings for the document
+   * @return boolean
+   */
+  public static boolean includePageInPdf(String layoutKey, LayoutSettings layoutSettings) {
+    return layoutSettings == null || layoutSettings.getPages() == null ||
+      layoutSettings.getPages().getExcludeFromPdf() == null ||
+      !layoutSettings.getPages().getExcludeFromPdf().contains(layoutKey);
   }
 }

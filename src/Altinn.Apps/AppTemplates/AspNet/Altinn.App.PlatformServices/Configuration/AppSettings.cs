@@ -28,7 +28,7 @@ namespace Altinn.App.Services.Configuration
         /// <summary>
         /// The app configuration baseUrl where files are stored in the container
         /// </summary>
-        public string AppBasePath { get; set; } = "";
+        public string AppBasePath { get; set; } = string.Empty;
 
         /// <summary>
         /// The app configuration baseUrl where files are stored in the container
@@ -69,6 +69,11 @@ namespace Altinn.App.Services.Configuration
         /// Gets or sets The name of the FormLayout json file Name
         /// </summary>
         public string FormLayoutJSONFileName { get; set; } = "FormLayout.json";
+
+        /// <summary>
+        /// Gets or sets the name of the layout setting file name
+        /// </summary>
+        public string FormLayoutSettingsFileName { get; set; } = "Settings.json";
 
         /// <summary>
         /// Gets or sets The name of the rule configuration json file Name
@@ -167,5 +172,10 @@ namespace Altinn.App.Services.Configuration
         /// Cache lifetime for app resources
         /// </summary>
         public int CacheResourceLifeTimeInSeconds { get; set; } = 3600;
+
+        /// <summary>
+        /// Gets or sets a value indicating whether the app should send events to the Events component.
+        /// </summary>
+        public bool RegisterEventsWithEventsComponent { get; set; } = false;
     }
 }

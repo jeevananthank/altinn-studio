@@ -1,13 +1,15 @@
-using Altinn.App.Services.Interface;
-using Altinn.Platform.Storage.Interface.Models;
-using Microsoft.Extensions.Logging;
-using Microsoft.VisualStudio.Web.CodeGenerators.Mvc.Dependency;
-using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
+
+using Altinn.App.PlatformServices.Helpers;
+using Altinn.App.Services.Interface;
+using Altinn.Platform.Storage.Interface.Models;
+
+using Microsoft.Extensions.Logging;
+using Newtonsoft.Json;
 
 namespace App.IntegrationTests.Mocks.Services
 {
@@ -80,7 +82,6 @@ namespace App.IntegrationTests.Mocks.Services
                 string content = File.ReadAllText(instancePath);
                 Instance storedInstance = (Instance)JsonConvert.DeserializeObject(content, typeof(Instance));
 
-
                 // Archiving instance if process was ended
                 if (storedInstance?.Process?.Ended == null && process.Ended != null)
                 {
@@ -107,6 +108,7 @@ namespace App.IntegrationTests.Mocks.Services
                 Instance instance = (Instance)JsonConvert.DeserializeObject(content, typeof(Instance));
                 return instance;
             }
+
             return null;
         }
 
@@ -121,7 +123,6 @@ namespace App.IntegrationTests.Mocks.Services
             return Path.Combine(unitTestFolder, @"..\..\..\Data\Instances");
         }
 
-
         private List<DataElement> GetDataElements(string org, string app, int instanceOwnerId, Guid instanceId)
         {
             string path = GetDataPath(org, app, instanceOwnerId, instanceId);
@@ -133,7 +134,7 @@ namespace App.IntegrationTests.Mocks.Services
 
                 foreach (string file in files)
                 {
-                    string content = System.IO.File.ReadAllText(Path.Combine(path, file));
+                    string content = File.ReadAllText(Path.Combine(path, file));
                     DataElement dataElement = (DataElement)JsonConvert.DeserializeObject(content, typeof(DataElement));
                     dataElements.Add(dataElement);
                 }
@@ -200,9 +201,70 @@ namespace App.IntegrationTests.Mocks.Services
                 return await Task.FromResult(storedInstance);
             }
 
+            return null;
+        }
+
+        public async Task<Instance> UpdateSubstatus(int instanceOwnerPartyId, Guid instanceGuid, Substatus substatus)
+        {
+            DateTime creationTime = DateTime.UtcNow;
+
+            if (substatus == null || string.IsNullOrEmpty(substatus.Label))
+            {
+                throw await PlatformHttpException.CreateAsync(
+                    new System.Net.Http.HttpResponseMessage { StatusCode = System.Net.HttpStatusCode.BadRequest });
+            }
+
+            string instancePath = GetInstancePath(instanceOwnerPartyId, instanceGuid);
+
+            if (File.Exists(instancePath))
+            {
+                string content = File.ReadAllText(instancePath);
+                Instance storedInstance = (Instance)JsonConvert.DeserializeObject(content, typeof(Instance));
+
+                storedInstance.Status ??= new InstanceStatus();
+
+                storedInstance.Status.Substatus = substatus;
+                storedInstance.LastChanged = creationTime;
+
+                // mock does not set last changed by, but this is set by the platform.
+                storedInstance.LastChangedBy = string.Empty;
+
+                File.WriteAllText(instancePath, JsonConvert.SerializeObject(storedInstance));
+                return await Task.FromResult(storedInstance);
+            }
 
             return null;
+        }
 
+        public Task<Instance> DeleteInstance(int instanceOwnerPartyId, Guid instanceGuid, bool hard)
+        {
+            string instancePath = GetInstancePath(instanceOwnerPartyId, instanceGuid);
+            if (File.Exists(instancePath))
+            {
+                string content = File.ReadAllText(instancePath);
+                Instance storedInstance = (Instance)JsonConvert.DeserializeObject(content, typeof(Instance));
+
+                if (storedInstance.Status == null)
+                {
+                    storedInstance.Status = new InstanceStatus();
+                }
+
+                if (hard)
+                {
+                    storedInstance.Status.HardDeleted = DateTime.UtcNow;
+                }
+
+                storedInstance.Status.SoftDeleted = DateTime.UtcNow;
+
+                // mock does not set last changed by, but this is set by the platform.
+                storedInstance.LastChangedBy = string.Empty;
+
+                File.WriteAllText(instancePath, JsonConvert.SerializeObject(storedInstance));
+
+                return Task.FromResult(storedInstance);
+            }
+
+            return null;
         }
 
         // Finds the path for the instance based on instanceId. Only works if guid is unique.

@@ -1,11 +1,7 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
+using Altinn.App.PlatformServices.Extensions;
+
 using Microsoft.AspNetCore.Hosting;
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
-using Microsoft.Extensions.Logging;
 
 namespace Altinn.App
 {
@@ -20,6 +16,10 @@ namespace Altinn.App
             Host.CreateDefaultBuilder(args)
                 .ConfigureWebHostDefaults(webBuilder =>
                 {
+                    webBuilder.ConfigureAppConfiguration((hostingContext, configBuilder) =>
+                    {
+                        configBuilder.LoadAppConfig(args);
+                    });
                     webBuilder.UseStartup<Startup>();
                 });
     }

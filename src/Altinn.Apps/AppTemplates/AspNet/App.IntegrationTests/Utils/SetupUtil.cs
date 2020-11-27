@@ -1,33 +1,37 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Net.Http;
 using System.Linq;
+using System.Net.Http;
 
 using Altinn.App;
 using Altinn.App.IntegrationTests;
 using Altinn.App.IntegrationTests.Mocks.Authentication;
+using Altinn.App.PlatformServices.Interface;
 using Altinn.App.Services.Configuration;
 using Altinn.App.Services.Implementation;
 using Altinn.App.Services.Interface;
 using Altinn.Platform.Authentication.Maskinporten;
-
 using AltinnCore.Authentication.JwtCookie;
+
 using App.IntegrationTests.Mocks.Services;
 using App.IntegrationTestsRef.Data.apps.tdd.sirius.services;
 using App.IntegrationTestsRef.Mocks.Services;
 
+using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
-using Microsoft.AspNetCore.Mvc.Testing;
 
 namespace App.IntegrationTestsRef.Utils
 {
     public static class SetupUtil
     {
-        public static HttpClient GetTestClient(CustomWebApplicationFactory<Startup> customFactory, string org, string app)
+        public static HttpClient GetTestClient(
+            CustomWebApplicationFactory<Startup> customFactory,
+            string org,
+            string app)
         {
             WebApplicationFactory<Startup> factory = customFactory.WithWebHostBuilder(builder =>
             {
@@ -57,6 +61,7 @@ namespace App.IntegrationTestsRef.Utils
                     services.AddTransient<IInstance, InstanceMockSI>();
                     services.AddTransient<IData, DataMockSI>();
                     services.AddTransient<IInstanceEvent, InstanceEventAppSIMock>();
+                    services.AddTransient<IEvents, EventsMockSI>();
                     services.AddTransient<IDSF, DSFMockSI>();
                     services.AddTransient<IER, ERMockSI>();
                     services.AddTransient<IRegister, RegisterMockSI>();
@@ -86,9 +91,15 @@ namespace App.IntegrationTestsRef.Utils
                             services.AddSingleton<IAltinnApp, IntegrationTests.Mocks.Apps.tdd.contributer_restriction.AltinnApp>();
                             break;
                         case "sirius":
-                            services.AddSingleton<ISiriusApi, SiriusAPImock>();
+                            services.AddSingleton<ISiriusApi, SiriusAPI>();
                             services.AddSingleton<IAltinnApp, IntegrationTests.Mocks.Apps.tdd.sirius.App>();
                             break;
+                        case "events":
+                            services.AddSingleton<IAltinnApp, IntegrationTests.Mocks.Apps.ttd.events.AltinnApp>();
+                            break;
+                        case "autodelete-true":
+                            services.AddSingleton<IAltinnApp, IntegrationTests.Mocks.Apps.tdd.autodelete_true.AltinnApp>();
+                            break;                            
                         default:
                             services.AddSingleton<IAltinnApp, IntegrationTests.Mocks.Apps.tdd.endring_av_navn.AltinnApp>();
                             break;

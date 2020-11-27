@@ -1,6 +1,7 @@
 import { SagaIterator } from 'redux-saga';
 import { call, select, takeEvery } from 'redux-saga/effects';
 import { AxiosRequestConfig } from 'axios';
+import { customEncodeURI } from 'altinn-shared/utils';
 import { IAttachment } from '..';
 import { getFileUploadComponentValidations } from '../../../../utils/formComponentUtils';
 import FormValidationsDispatcher from '../../../../features/form/validation/validationActions';
@@ -27,20 +28,34 @@ export function* uploadAttachmentSaga(
     const newValidations = getFileUploadComponentValidations(null, null);
     yield call(FormValidationsDispatcher.updateComponentValidations, newValidations, componentId);
 
-    const fileUploadLink = fileUploadUrl(attachmentType, file.name);
-    const contentType = file.name.toLowerCase().endsWith('.csv') ? 'text/csv' : file.type;
+    const fileUploadLink = fileUploadUrl(attachmentType);
+    let contentType;
+
+    if (!file.type) {
+      contentType = `application/octet-stream`;
+    } else if (file.name.toLowerCase().endsWith('.csv')) {
+      contentType = 'text/csv';
+    } else {
+      contentType = file.type;
+    }
+
     const config: AxiosRequestConfig = {
       headers: {
         'Content-Type': contentType,
-        'Content-Disposition': `attachment; filename=${encodeURI(file.name)}`,
+        'Content-Disposition': `attachment; filename=${customEncodeURI(file.name)}`,
       },
     };
 
     const response: any = yield call(post, fileUploadLink, config, file);
 
     if (response.status === 201) {
-      const attachment: IAttachment
-        = { name: file.name, size: file.size, uploaded: true, id: response.data.id, deleting: false };
+      const attachment: IAttachment = {
+        name: file.name,
+        size: file.size,
+        uploaded: true,
+        id: response.data.id,
+        deleting: false,
+      };
       yield call(AttachmentDispatcher.uploadAttachmentFulfilled,
         attachment, attachmentType, tmpAttachmentId, componentId);
     } else {

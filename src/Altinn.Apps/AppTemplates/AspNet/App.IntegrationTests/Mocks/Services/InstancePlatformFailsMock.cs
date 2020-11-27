@@ -1,16 +1,12 @@
-using Altinn.App.PlatformServices.Helpers;
-using Altinn.App.Services.Interface;
-using Altinn.App.Services.Models;
-using Altinn.Platform.Storage.Interface.Models;
-using Microsoft.AspNetCore.Http;
-using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
-using System.IO;
 using System.Net;
 using System.Net.Http;
-using System.Text;
 using System.Threading.Tasks;
+
+using Altinn.App.PlatformServices.Helpers;
+using Altinn.App.Services.Interface;
+using Altinn.Platform.Storage.Interface.Models;
 
 namespace App.IntegrationTests.Mocks.Services
 {
@@ -25,7 +21,6 @@ namespace App.IntegrationTests.Mocks.Services
             };
 
             throw await PlatformHttpException.CreateAsync(response);
-
         }
 
         /// <inheritdoc />
@@ -67,6 +62,16 @@ namespace App.IntegrationTests.Mocks.Services
         }
 
         public Task<Instance> UpdateReadStatus(int instanceOwnerPartyId, Guid instanceGuid, string readStatus)
+        {
+            throw new NotImplementedException();
+        }
+
+        public Task<Instance> UpdateSubstatus(int instanceOwnerPartyId, Guid instanceGuid, Substatus substatus)
+        {
+            throw new NotImplementedException();
+        }
+
+        public Task<Instance> DeleteInstance(int instanceOwnerPartyId, Guid instanceGuid, bool hard)
         {
             throw new NotImplementedException();
         }

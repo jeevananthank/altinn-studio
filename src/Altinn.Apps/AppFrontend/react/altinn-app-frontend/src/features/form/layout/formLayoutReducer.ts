@@ -1,25 +1,32 @@
 import update from 'immutability-helper';
 import { Action, Reducer } from 'redux';
 import { IUiConfig } from 'src/types';
-import { ILayout } from './index';
-import { IFetchFormLayoutFulfilled, IFetchFormLayoutRejected } from './fetch/fetchFormLayoutActions';
+import { ILayouts } from './index';
+import { IFetchFormLayoutFulfilled, IFetchFormLayoutRejected, IFetchFormLayoutSettingsFulfilled, IFetchFormLayoutSettingsRejected } from './fetch/fetchFormLayoutActions';
 import * as ActionTypes from './formLayoutActionTypes';
-import { IUpdateFocusFulfilled, IUpdateFormLayout, IUpdateHiddenComponents, IUpdateAutoSave, IUpdateRepeatingGroupsFulfilled } from './update/updateFormLayoutActions';
+import { IUpdateFocusFulfilled,
+  IUpdateHiddenComponents,
+  IUpdateAutoSave,
+  IUpdateRepeatingGroupsFulfilled,
+  IUpdateCurrentView } from './update/updateFormLayoutActions';
 
 export interface ILayoutState {
-  layout: ILayout;
+  layouts: ILayouts;
   error: Error;
   uiConfig: IUiConfig;
 }
 
 const initialState: ILayoutState = {
-  layout: null,
+  layouts: null,
   error: null,
   uiConfig: {
     focus: null,
     hiddenFields: [],
     autoSave: null,
     repeatingGroups: {},
+    currentView: 'FormLayout',
+    navigationConfig: {},
+    layoutOrder: null,
   },
 };
 
@@ -33,16 +40,25 @@ const LayoutReducer: Reducer<ILayoutState> = (
 
   switch (action.type) {
     case ActionTypes.FETCH_FORM_LAYOUT_FULFILLED: {
-      const { layout } = action as IFetchFormLayoutFulfilled;
+      const { layouts, navigationConfig } = action as IFetchFormLayoutFulfilled;
       return update<ILayoutState>(state, {
-        layout: {
-          $set: layout,
+        layouts: {
+          $set: layouts,
+        },
+        uiConfig: {
+          navigationConfig: {
+            $set: navigationConfig,
+          },
+          layoutOrder: {
+            $set: Object.keys(layouts),
+          },
         },
         error: {
           $set: null,
         },
       });
     }
+
     case ActionTypes.FETCH_FORM_LAYOUT_REJECTED: {
       const { error } = action as IFetchFormLayoutRejected;
       return update<ILayoutState>(state, {
@@ -51,6 +67,7 @@ const LayoutReducer: Reducer<ILayoutState> = (
         },
       });
     }
+
     case ActionTypes.UPDATE_FOCUS_FULFUILLED: {
       const { focusComponentId } = action as IUpdateFocusFulfilled;
       return update<ILayoutState>(state, {
@@ -61,16 +78,7 @@ const LayoutReducer: Reducer<ILayoutState> = (
         },
       });
     }
-    case ActionTypes.UPDATE_FORM_LAYOUT: {
-      const { layoutElement, index } = action as IUpdateFormLayout;
-      return update<ILayoutState>(state, {
-        layout: {
-          [index]: {
-            $set: layoutElement,
-          },
-        },
-      });
-    }
+
     case ActionTypes.UPDATE_REPEATING_GROUPS_FULFILLED: {
       const {
         repeatingGroups: repeatingGroup,
@@ -83,6 +91,7 @@ const LayoutReducer: Reducer<ILayoutState> = (
         },
       });
     }
+
     case ActionTypes.UPDATE_HIDDEN_COMPONENTS: {
       const { componentsToHide } = action as IUpdateHiddenComponents;
       return update<ILayoutState>(state, {
@@ -93,6 +102,7 @@ const LayoutReducer: Reducer<ILayoutState> = (
         },
       });
     }
+
     case ActionTypes.UPDATE_AUTO_SAVE: {
       const { autoSave } = action as IUpdateAutoSave;
       return update<ILayoutState>(state, {
@@ -103,6 +113,47 @@ const LayoutReducer: Reducer<ILayoutState> = (
         },
       });
     }
+
+    case ActionTypes.UPDATE_CURRENT_VIEW: {
+      const { newView } = action as IUpdateCurrentView;
+      return update<ILayoutState>(state, {
+        uiConfig: {
+          currentView: {
+            $set: newView,
+          },
+        },
+      });
+    }
+
+    case ActionTypes.FETCH_FORM_LAYOUT_SETTINGS_FULFILLED: {
+      const { settings } = action as IFetchFormLayoutSettingsFulfilled;
+      return update<ILayoutState>(state, {
+        uiConfig: {
+          layoutOrder: (currentLayoutOrder) => {
+            if (!settings || !settings.pages || !settings.pages.order) {
+              return currentLayoutOrder;
+            }
+            return settings.pages.order;
+          },
+          currentView: (currentView) => {
+            if (!settings || !settings.pages || !settings.pages.order) {
+              return currentView;
+            }
+            return settings.pages.order[0];
+          },
+        },
+      });
+    }
+
+    case ActionTypes.FETCH_FORM_LAYOUT_SETTINGS_REJECTED: {
+      const { error } = action as IFetchFormLayoutSettingsRejected;
+      return update<ILayoutState>(state, {
+        error: {
+          $set: error,
+        },
+      });
+    }
+
     default: {
       return state;
     }

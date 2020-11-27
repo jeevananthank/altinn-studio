@@ -1,5 +1,7 @@
 using System;
 using System.Net;
+using System.Threading.Tasks;
+
 using Altinn.Common.AccessTokenClient.Services;
 using Altinn.Platform.Receipt.Configuration;
 using Altinn.Platform.Receipt.Health;
@@ -18,6 +20,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Microsoft.IdentityModel.Logging;
 using Microsoft.IdentityModel.Tokens;
 
 namespace Altinn.Platform.Receipt
@@ -140,19 +143,24 @@ namespace Altinn.Platform.Receipt
 
             if (env.IsDevelopment() || env.IsStaging())
             {
+                _logger.LogInformation("IsDevelopment || IsStaging");
+
                 app.UseDeveloperExceptionPage();
+
+                // Enable higher level of detail in exceptions related to JWT validation
+                IdentityModelEventSource.ShowPII = true;
             }
             else
             {
-                app.UseExceptionHandler("/Error");
+                app.UseExceptionHandler("/receipt/api/v1/error");
             }
 
             app.UseStaticFiles();
-            app.UseStatusCodePages(async context =>
+            app.UseStatusCodePages(context =>
             {
                 var request = context.HttpContext.Request;
                 var response = context.HttpContext.Response;
-                string url = $"https://platform.{Configuration["GeneralSettings:Hostname"]}{request.Path.ToString()}";
+                string url = $"https://platform.{Configuration["GeneralSettings:Hostname"]}{request.Path}";
 
                 // you may also check requests path to do this only for specific methods
                 // && request.Path.Value.StartsWith("/specificPath")
@@ -160,6 +168,8 @@ namespace Altinn.Platform.Receipt
                 {
                     response.Redirect($"{authenticationEndpoint}authentication?goto={url}");
                 }
+
+                return Task.CompletedTask;
             });
 
             app.UseRouting();

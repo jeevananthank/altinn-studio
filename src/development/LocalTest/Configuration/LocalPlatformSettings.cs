@@ -1,8 +1,3 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
-
 namespace LocalTest.Configuration
 {
     /// <summary>
@@ -18,7 +13,7 @@ namespace LocalTest.Configuration
         /// <summary>
         /// The folder where the app that is tested is located. Used to retrieve app configuration
         /// </summary>
-        public string AppRepsitoryBasePath { get; set; }
+        public string AppRepositoryBasePath { get; set; }
 
         public string BlobStorageFolder { get; set; } = "blobs/";
 
@@ -31,7 +26,9 @@ namespace LocalTest.Configuration
 
         public string InstanceCollectionFolder { get; set; } = "instances/";
 
-        public string  DataCollectionFolder { get; set; } = "data/";
+        public string DataCollectionFolder { get; set; } = "data/";
+
+        public string EventsCollectionFolder { get; set; } = "events/";
 
         public string InstanceEventsCollectionFolder { get; set; } = "instanceevents/";
 

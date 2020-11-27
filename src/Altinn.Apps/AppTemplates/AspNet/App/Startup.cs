@@ -3,6 +3,8 @@ using System;
 using Altinn.App.Api.Controllers;
 using Altinn.App.Api.Filters;
 using Altinn.App.PlatformServices.Extensions;
+using Altinn.App.PlatformServices.Implementation;
+using Altinn.App.PlatformServices.Interface;
 using Altinn.App.Services.Configuration;
 using Altinn.App.Services.Implementation;
 using Altinn.App.Services.Interface;
@@ -28,28 +30,45 @@ using Microsoft.IdentityModel.Tokens;
 
 namespace Altinn.App
 {
+    /// <summary>
+    /// This class is responsible for configuration of the built in service provider and setting up all middleware.
+    /// </summary>
     public class Startup
     {
         private readonly IWebHostEnvironment _env;
 
+        /// <summary>
+        /// Initialize a new instance of the <see cref="Startup"/> class with the given configuration
+        /// and host environment information.
+        /// </summary>
+        /// <param name="configuration">The current configuration.</param>
+        /// <param name="env">Information about the host environment.</param>
         public Startup(IConfiguration configuration, IWebHostEnvironment env)
         {
             Configuration = configuration;
             _env = env;
         }
 
+        /// <summary>
+        /// Gets the application configuration object.
+        /// </summary>
         public IConfiguration Configuration { get; }
 
-        // This method gets called by the runtime. Use this method to add services to the container.
+        /// <summary>
+        /// Adds any configuration to the service provider.
+        /// </summary>
+        /// <param name="services">The current service provider.</param>
         public void ConfigureServices(IServiceCollection services)
         {
             // Add API controllers from Altinn.App.Api
-            services.AddControllersWithViews().AddApplicationPart(typeof(InstancesController).Assembly).AddXmlSerializerFormatters()
-            .AddJsonOptions(options =>
-            {
-                // Use camel casing.
-                options.JsonSerializerOptions.PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase;
-            });
+            IMvcBuilder mvcBuilder = services.AddControllersWithViews();
+            mvcBuilder
+                .AddApplicationPart(typeof(InstancesController).Assembly)
+                .AddXmlSerializerFormatters()
+                .AddJsonOptions(options =>
+                {
+                    options.JsonSerializerOptions.PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase;
+                });
             services.AddMemoryCache();
 
             // Dot net services
@@ -58,6 +77,7 @@ namespace Altinn.App
 
             // Internal Application services
             services.AddSingleton<IAppResources, AppResourcesSI>();
+            services.AddAppSecrets(Configuration, _env);
 
             // Services for Altinn Platform components
             services.AddTransient<IPDP, PDPAppSI>();
@@ -66,7 +86,7 @@ namespace Altinn.App
             services.AddTransient<IAccessTokenGenerator, AccessTokenGenerator>();
             services.AddTransient<ISigningCredentialsResolver, SigningCredentialsResolver>();
 
-            // HttpClients for platform functionality. Registred as httpclients so default httpclientfactory is used
+            // HttpClients for platform functionality. Registered as HttpClients so default HttpClientFactory is used
             services.AddHttpClient<AuthorizationApiClient>();
             services.AddHttpClient<IApplication, ApplicationAppSI>();
             services.AddHttpClient<IAuthentication, AuthenticationAppSI>();
@@ -76,13 +96,14 @@ namespace Altinn.App
             services.AddHttpClient<IER, RegisterERAppSI>();
             services.AddHttpClient<IInstance, InstanceAppSI>();
             services.AddHttpClient<IInstanceEvent, InstanceEventAppSI>();
+            services.AddHttpClient<IEvents, EventsAppSI>();
             services.AddHttpClient<IPDF, PDFSI>();
             services.AddHttpClient<IProcess, ProcessAppSI>();
             services.AddHttpClient<IProfile, ProfileAppSI>();
             services.AddHttpClient<IRegister, RegisterAppSI>();
             services.AddHttpClient<IText, TextAppSI>();
 
-            // Altinn App implementation service (The concrete implementation of logic from Application repsitory)
+            // Altinn App implementation service (The concrete implementation of logic from Application repository)
             services.AddTransient<IAltinnApp, AppLogic.App>();
 
             services.Configure<KestrelServerOptions>(options =>
@@ -97,8 +118,6 @@ namespace Altinn.App
             services.Configure<Altinn.Common.PEP.Configuration.PepSettings>(Configuration.GetSection("PEPSettings"));
             services.Configure<Altinn.Common.PEP.Configuration.PlatformSettings>(Configuration.GetSection("PlatformSettings"));
             services.Configure<AccessTokenSettings>(Configuration.GetSection("AccessTokenSettings"));
-
-            AppSettings appSettings = Configuration.GetSection("AppSettings").Get<AppSettings>();
 
             services.ConfigureDataProtection();
 
@@ -126,6 +145,7 @@ namespace Altinn.App
             {
                 options.AddPolicy("InstanceRead", policy => policy.Requirements.Add(new AppAccessRequirement("read")));
                 options.AddPolicy("InstanceWrite", policy => policy.Requirements.Add(new AppAccessRequirement("write")));
+                options.AddPolicy("InstanceDelete", policy => policy.Requirements.Add(new AppAccessRequirement("delete")));
                 options.AddPolicy("InstanceInstantiate", policy => policy.Requirements.Add(new AppAccessRequirement("instantiate")));
                 options.AddPolicy("InstanceComplete", policy => policy.Requirements.Add(new AppAccessRequirement("complete")));
             });
@@ -155,7 +175,11 @@ namespace Altinn.App
             }
         }
 
-        // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
+        /// <summary>
+        /// Configure the Http request pipeline middleware.
+        /// </summary>
+        /// <param name="app">The current application builder.</param>
+        /// <param name="env">The current host environment.</param>
         public void Configure(IApplicationBuilder app, IWebHostEnvironment env)
         {
             if (env.IsDevelopment())

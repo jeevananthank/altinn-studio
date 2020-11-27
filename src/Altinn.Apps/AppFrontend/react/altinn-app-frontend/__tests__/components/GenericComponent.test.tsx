@@ -17,19 +17,22 @@ describe('>>> components/GenericComponent.tsx', () => {
   beforeAll(() => {
     const createStore = configureStore();
     const formLayout = getFormLayoutStateMock({
-      layout: [
-        {
-          type: 'Input',
-          id: 'mockId',
-          dataModelBindings: {
-            simpleBiding: 'mockDataBinding',
+      layouts: {
+        FormLayout: [
+          {
+            type: 'Input',
+            id: 'mockId',
+            dataModelBindings: {
+              simpleBiding: 'mockDataBinding',
+            },
+            readOnly: false,
+            required: false,
+            disabled: false,
+            textResourceBindings: {},
+            triggers:[]
           },
-          readOnly: false,
-          required: false,
-          disabled: false,
-          textResourceBindings: {},
-        },
-      ],
+        ],
+      },
     });
 
     const formData = getFormDataStateMock({
@@ -66,6 +69,7 @@ describe('>>> components/GenericComponent.tsx', () => {
           dataModelBindings={{}}
           readOnly={false}
           required={false}
+          triggers={[]}
         />
       </Provider>);
     expect(wrapper.exists('#mockId')).toBe(true);

@@ -26,6 +26,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Primitives;
 using Newtonsoft.Json;
+using Substatus = Altinn.Platform.Storage.Interface.Models.Substatus;
 
 namespace Altinn.Platform.Storage.Controllers
 {
@@ -36,7 +37,10 @@ namespace Altinn.Platform.Storage.Controllers
     [ApiController]
     public class InstancesController : ControllerBase
     {
-        private const string InstanceReadScope = "altinn:instances.read";
+        private readonly List<string> _instanceReadScope = new List<string>()
+        {
+            "altinn:serviceowner/instances.read"
+        };
 
         private readonly IInstanceRepository _instanceRepository;
         private readonly IInstanceEventRepository _instanceEventRepository;
@@ -94,6 +98,7 @@ namespace Altinn.Platform.Storage.Controllers
         /// <param name="created">Created time.</param>
         /// <param name="visibleAfter">The visible after date time.</param>
         /// <param name="dueBefore">The due before date time.</param>
+        /// <param name="excludeConfirmedBy">A string that will hide instances already confirmed by stakeholder.</param>
         /// <param name="continuationToken">Continuation token.</param>
         /// <param name="size">The page size.</param>
         /// <returns>List of all instances for given instance owner.</returns>
@@ -115,6 +120,7 @@ namespace Altinn.Platform.Storage.Controllers
             [FromQuery] string created,
             [FromQuery(Name = "visibleAfter")] string visibleAfter,
             [FromQuery] string dueBefore,
+            [FromQuery] string excludeConfirmedBy,
             string continuationToken,
             int? size)
         {
@@ -131,7 +137,7 @@ namespace Altinn.Platform.Storage.Controllers
             {
                 isOrgQuerying = true;
 
-                if (!_authzHelper.ContainsRequiredScope(InstanceReadScope, User))
+                if (!_authzHelper.ContainsRequiredScope(_instanceReadScope, User))
                 {
                     return Forbid();
                 }
@@ -216,7 +222,7 @@ namespace Altinn.Platform.Storage.Controllers
                     response.Self = selfUrl;
                 }
 
-                if (nextContinuationToken != null)
+                if (!string.IsNullOrEmpty(nextContinuationToken))
                 {
                     string nextQueryString = BuildQueryStringWithOneReplacedParameter(
                         queryParams,
@@ -354,7 +360,7 @@ namespace Altinn.Platform.Storage.Controllers
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         [Produces("application/json")]
-        public async Task<ActionResult<Instance>> Delete(int instanceOwnerPartyId, Guid instanceGuid, bool? hard)
+        public async Task<ActionResult<Instance>> Delete(int instanceOwnerPartyId, Guid instanceGuid, [FromQuery] bool hard)
         {
             string instanceId = $"{instanceOwnerPartyId}/{instanceGuid}";
 
@@ -379,44 +385,36 @@ namespace Altinn.Platform.Storage.Controllers
                 return StatusCode(500, $"Unknown exception in delete: {e}");
             }
 
-            if (hard.HasValue && hard == true)
-            {
-                try
-                {
-                    await _instanceRepository.Delete(instance);
+            DateTime now = DateTime.UtcNow;
 
-                    return NoContent();
-                }
-                catch (Exception e)
-                {
-                    _logger.LogError($"Unexpected exception in delete: {e}");
-                    return StatusCode(500, $"Unexpected exception in delete: {e.Message}");
-                }
+            if (instance.Status == null)
+            {
+                instance.Status = new InstanceStatus();
+            }
+
+            if (hard)
+            {
+                instance.Status.HardDeleted = now;
+                instance.Status.SoftDeleted ??= now;
             }
             else
             {
-                DateTime now = DateTime.UtcNow;
-
-                if (instance.Status == null)
-                {
-                    instance.Status = new InstanceStatus();
-                }
-
                 instance.Status.SoftDeleted = now;
-                instance.LastChangedBy = GetUserId();
-                instance.LastChanged = now;
+            }
 
-                try
-                {
-                    Instance softDeletedInstance = await _instanceRepository.Update(instance);
+            instance.LastChangedBy = GetUserId();
+            instance.LastChanged = now;
 
-                    return Ok(softDeletedInstance);
-                }
-                catch (Exception e)
-                {
-                    _logger.LogError($"Unexpected exception when updating instance after soft delete: {e}");
-                    return StatusCode(500, $"Unexpected exception when updating instance after soft delete: {e.Message}");
-                }
+            try
+            {
+                Instance deletedInstance = await _instanceRepository.Update(instance);
+
+                return Ok(deletedInstance);
+            }
+            catch (Exception e)
+            {
+                _logger.LogError($"Unexpected exception when deleting instance {instance.Id}: {e}");
+                return StatusCode(500, $"Unexpected exception when deleting instance {instance.Id}: {e.Message}");
             }
         }
 
@@ -517,6 +515,64 @@ namespace Altinn.Platform.Storage.Controllers
                 return StatusCode(StatusCodes.Status500InternalServerError);
             }
 
+            return Ok(updatedInstance);
+        }
+
+        /// <summary>
+        /// Update instance sub status.
+        /// </summary>
+        /// <param name="instanceOwnerPartyId">The party id of the instance owner.</param>
+        /// <param name="instanceGuid">The id of the instance to confirm as complete.</param>
+        /// <param name="substatus">The updated sub status.</param>
+        /// <returns>Returns the updated instance.</returns>
+        [Authorize]
+        [HttpPut("{instanceOwnerPartyId:int}/{instanceGuid:guid}/substatus")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [Produces("application/json")]
+        public async Task<ActionResult<Instance>> UpdateSubstatus(
+          [FromRoute] int instanceOwnerPartyId,
+          [FromRoute] Guid instanceGuid,
+          [FromBody] Substatus substatus)
+        {
+            DateTime creationTime = DateTime.UtcNow;
+
+            if (substatus == null || string.IsNullOrEmpty(substatus.Label))
+            {
+                return BadRequest($"Invalid sub status: {JsonConvert.SerializeObject(substatus)}. Substatus must be defined and include a label.");
+            }
+
+            string instanceId = $"{instanceOwnerPartyId}/{instanceGuid}";
+            Instance instance = await _instanceRepository.GetOne(instanceId, instanceOwnerPartyId);
+
+            string org = User.GetOrg();
+            if (!instance.Org.Equals(org))
+            {
+                return Forbid();
+            }
+
+            Instance updatedInstance;
+            try
+            {
+                if (instance.Status == null)
+                {
+                    instance.Status = new InstanceStatus();
+                }
+
+                instance.Status.Substatus = substatus;
+                instance.LastChanged = creationTime;
+                instance.LastChangedBy = User.GetOrgNumber().ToString();
+
+                updatedInstance = await _instanceRepository.Update(instance);
+                updatedInstance.SetPlatformSelfLinks(_storageBaseAndHost);
+            }
+            catch (Exception e)
+            {
+                _logger.LogError(e, $"Unable to update sub status for instance {instanceId}");
+                return StatusCode(StatusCodes.Status500InternalServerError);
+            }
+
+            await DispatchEvent(InstanceEventType.SubstatusUpdated, updatedInstance);
             return Ok(updatedInstance);
         }
 

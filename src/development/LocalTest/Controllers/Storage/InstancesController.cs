@@ -331,24 +331,30 @@ namespace Altinn.Platform.Storage.Controllers
                 return StatusCode(500, $"Unknown exception in delete: {e}");
             }
 
+            DateTime now = DateTime.UtcNow;
+            
             if (hard.HasValue && hard == true)
             {
+                instance.Status.HardDeleted = now;
+                instance.Status.SoftDeleted ??= now;
+
+                instance.LastChangedBy = GetUserId();
+                instance.LastChanged = now;
+
                 try
                 {
-                    await _instanceRepository.Delete(instance);
+                    Instance deletedInstance = await _instanceRepository.Update(instance);
 
-                    return NoContent();
+                    return Ok(deletedInstance);
                 }
                 catch (Exception e)
                 {
-                    _logger.LogError($"Unexpected exception in delete: {e}");
-                    return StatusCode(500, $"Unexpected exception in delete: {e.Message}");
+                    _logger.LogError($"Unexpected exception when deleting instance {instance.Id}: {e}");
+                    return StatusCode(500, $"Unexpected exception when deleting instance {instance.Id}: {e.Message}");
                 }
             }
             else
             {
-                DateTime now = DateTime.UtcNow;
-
                 instance.Status.SoftDeleted = now;
                 instance.LastChangedBy = GetUserId();
                 instance.LastChanged = now;
@@ -377,7 +383,7 @@ namespace Altinn.Platform.Storage.Controllers
         /// </remarks>
         /// <param name="instanceOwnerPartyId">The party id of the instance owner.</param>
         /// <param name="instanceGuid">The id of the instance to confirm as complete.</param>
-        /// <returns>Returns a list of the process events.</returns>        
+        /// <returns>Returns a list of the process events.</returns>
         [Authorize(Policy = AuthzConstants.POLICY_INSTANCE_COMPLETE)]
         [HttpPost("{instanceOwnerPartyId:int}/{instanceGuid:guid}/complete")]
         [ProducesResponseType(StatusCodes.Status200OK)]
@@ -426,7 +432,7 @@ namespace Altinn.Platform.Storage.Controllers
         /// <param name="instanceOwnerPartyId">The party id of the instance owner.</param>
         /// <param name="instanceGuid">The id of the instance to confirm as complete.</param>
         /// <param name="status">The updated read status.</param>
-        /// <returns>Returns the updated instance.</returns>        
+        /// <returns>Returns the updated instance.</returns>
         [Authorize(Policy = AuthzConstants.POLICY_INSTANCE_READ)]
         [HttpPut("{instanceOwnerPartyId:int}/{instanceGuid:guid}/readstatus")]
         [ProducesResponseType(StatusCodes.Status200OK)]
@@ -464,6 +470,64 @@ namespace Altinn.Platform.Storage.Controllers
                 return StatusCode(StatusCodes.Status500InternalServerError);
             }
 
+            return Ok(updatedInstance);
+        }
+
+        /// <summary>
+        /// Update instance sub status.
+        /// </summary>
+        /// <param name="instanceOwnerPartyId">The party id of the instance owner.</param>
+        /// <param name="instanceGuid">The id of the instance to confirm as complete.</param>
+        /// <param name="substatus">The updated sub status.</param>
+        /// <returns>Returns the updated instance.</returns>
+        [Authorize]
+        [HttpPut("{instanceOwnerPartyId:int}/{instanceGuid:guid}/substatus")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [Produces("application/json")]
+        public async Task<ActionResult<Instance>> UpdateSubstatus(
+          [FromRoute] int instanceOwnerPartyId,
+          [FromRoute] Guid instanceGuid,
+          [FromBody] Substatus substatus)
+        {
+            DateTime creationTime = DateTime.UtcNow;
+
+            if (substatus == null || string.IsNullOrEmpty(substatus.Label))
+            {
+                return BadRequest($"Invalid sub status: {JsonConvert.SerializeObject(substatus)}. Substatus must be defined and include a label.");
+            }
+
+            string instanceId = $"{instanceOwnerPartyId}/{instanceGuid}";
+            Instance instance = await _instanceRepository.GetOne(instanceId, instanceOwnerPartyId);
+
+            string org = User.GetOrg();
+            if (!instance.Org.Equals(org))
+            {
+                return Forbid();
+            }
+
+            Instance updatedInstance;
+            try
+            {
+                if (instance.Status == null)
+                {
+                    instance.Status = new InstanceStatus();
+                }
+
+                instance.Status.Substatus = substatus;
+                instance.LastChanged = creationTime;
+                instance.LastChangedBy = User.GetOrgNumber().ToString();
+
+                updatedInstance = await _instanceRepository.Update(instance);
+                updatedInstance.SetPlatformSelfLinks(_storageBaseAndHost);
+            }
+            catch (Exception e)
+            {
+                _logger.LogError(e, $"Unable to update sub status for instance {instanceId}");
+                return StatusCode(StatusCodes.Status500InternalServerError);
+            }
+
+            await DispatchEvent(InstanceEventType.SubstatusUpdated, updatedInstance);
             return Ok(updatedInstance);
         }
 

@@ -1,6 +1,7 @@
+using System.Collections.Generic;
+
 using Altinn.App.Common.Models;
 using Altinn.Platform.Storage.Interface.Models;
-using System.Collections.Generic;
 
 namespace Altinn.App.Services.Interface
 {
@@ -23,7 +24,7 @@ namespace Altinn.App.Services.Interface
         /// </summary>
         /// <param name="org">Unique identifier of the organisation responsible for the app.</param>
         /// <param name="app">Application identifier which is unique within an organisation.</param>
-        /// <param name="resource">the resource.</param>
+        /// <param name="textResource">the resource.</param>
         /// <returns>The app resource.</returns>
         byte[] GetText(string org, string app, string textResource);
 
@@ -52,8 +53,6 @@ namespace Altinn.App.Services.Interface
         /// <summary>
         /// Returns the application metadata for an application.
         /// </summary>
-        /// <param name="org">Unique identifier of the organisation responsible for the app.</param>
-        /// <param name="app">Application identifier which is unique within an organisation.</param>
         /// <returns>The application  metadata for an application.</returns>
         Application GetApplication();
 
@@ -72,10 +71,22 @@ namespace Altinn.App.Services.Interface
         string GetClassRefForLogicDataType(string dataType);
 
         /// <summary>
-        /// 
+        /// Get the list of options for a specific options list by its id.
         /// </summary>
-        /// <param name="optionId"></param>
-        /// <returns></returns>
+        /// <param name="optionId">The id of the options list to retrieve</param>
+        /// <returns>The list of options</returns>
         List<AppOption> GetOptions(string optionId);
+
+        /// <summary>
+        /// Gets the layouts for the app.
+        /// </summary>
+        /// <returns>A dictionary of FormLayout objects serialized to JSON</returns>
+        string GetLayouts();
+
+        /// <summary>
+        /// Gets the the layouts settings
+        /// </summary>
+        /// <returns>The layout settings</returns>
+        string GetLayoutSettings();
     }
 }

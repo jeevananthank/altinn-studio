@@ -18,8 +18,10 @@ export function* parseText(): SagaIterator {
     const formData: IFormData = yield select(FormDataSelector);
     const textResources: ITextResourcesState = yield select(TextResourcesSelector);
     const updatedTextsResources: ITextResource[] =
-      replaceTextResourceParams([...textResources.resources], { dataModel: formData });
-    yield call(TextResourceActions.replaceTextResourcesFulfilled, textResources.language, updatedTextsResources);
+      replaceTextResourceParams(textResources.resources, { dataModel: formData });
+    if (JSON.stringify(textResources) !== JSON.stringify(updatedTextsResources)) {
+      yield call(TextResourceActions.replaceTextResourcesFulfilled, textResources.language, updatedTextsResources);
+    }
   } catch (error) {
     yield call(TextResourceActions.replaceTextResourcesRejected, error);
   }

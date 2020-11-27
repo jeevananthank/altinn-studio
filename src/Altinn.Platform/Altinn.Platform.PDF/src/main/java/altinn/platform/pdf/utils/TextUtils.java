@@ -4,13 +4,19 @@ import altinn.platform.pdf.models.TextResourceElement;
 import altinn.platform.pdf.models.TextResources;
 import com.google.gson.Gson;
 import org.apache.pdfbox.pdmodel.font.PDFont;
-import org.springframework.core.io.ClassPathResource;
+import org.springframework.core.io.Resource;
+import org.springframework.core.io.support.PathMatchingResourcePatternResolver;
 
 import java.io.*;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.lang.invoke.MethodHandles;
+import java.nio.charset.StandardCharsets;
+import java.time.LocalDate;
+import java.time.chrono.IsoChronology;
+import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeFormatterBuilder;
+import java.time.format.FormatStyle;
+import java.time.temporal.TemporalAccessor;
+import java.util.*;
 
 public class TextUtils {
 
@@ -218,22 +224,69 @@ public class TextUtils {
 
   /**
    * Reads all the language files and puts them in a lang map
+   * @return a map of languages with corresponding texts
    */
-  public static void readLanguageFiles() throws IOException {
-    ClassPathResource langDir = new ClassPathResource(("language"));
-    File[] files = langDir.getFile().listFiles();
+  public static Map<String, Map<String, String>> readLanguageFiles() throws IOException {
+    ClassLoader classLoader = MethodHandles.lookup().getClass().getClassLoader();
+    PathMatchingResourcePatternResolver resolver = new PathMatchingResourcePatternResolver(classLoader);
+    Resource[] resources = resolver.getResources("classpath:language/*.json");
+
     Map<String, Map<String, String>> languagesMap = new HashMap<>();
     Gson gson = new Gson();
-    for (final File file: files) {
-      String langCode = file.getName().split("\\.")[0];
+    for (final Resource resource: resources) {
+      String langCode = resource.getFilename().split("\\.")[0];
       try (
-        FileReader fileReader = new FileReader((file));
-        BufferedReader bufferedReader = new BufferedReader(fileReader);
+        InputStreamReader inputStreamReader = new InputStreamReader(resource.getInputStream(), StandardCharsets.UTF_8);
+        BufferedReader bufferedReader = new BufferedReader(inputStreamReader);
       ) {
         Map<String, String> langMap = gson.fromJson(bufferedReader, Map.class);
         languagesMap.put(langCode, langMap);
       }
     }
-    languages = languagesMap;
+    return languagesMap;
+  }
+
+  /**
+   * initializes the languages
+   */
+  public static void initializeLanguages() throws IOException {
+    languages = readLanguageFiles();
+  }
+
+  /**
+   * Formats a date to the user lang. The date value can be a ISO date-time or a  ISO date
+   * ISO date time format example: 2020-09-11T12:00:00.000+02:00
+   * ISO date format example: 2020-09-11
+   * @param value a date, could be a ISO instant or ISO date
+   * @return the formatted date
+   */
+  public static String getDateFormat(String value, String language) {
+    if (value == null || value.isEmpty()) {
+      return "";
+    }
+    Locale locale;
+    if (language == null || language.isEmpty()) {
+      locale = new Locale("nb");
+    } else {
+      locale = new Locale(language);
+    }
+
+    String pattern =
+        DateTimeFormatterBuilder
+          .getLocalizedDateTimePattern
+            ( FormatStyle.SHORT
+              , null
+              , IsoChronology.INSTANCE
+              , locale
+            );
+    pattern = pattern.replace("yy", "yyyy");
+
+    if (value.length() > 10) {
+      TemporalAccessor ta = DateTimeFormatter.ISO_DATE_TIME.parse(value);
+      return DateTimeFormatter.ofPattern(pattern).withLocale(locale).format(ta);
+    } else {
+      LocalDate date = LocalDate.parse(value, DateTimeFormatter.ISO_DATE);
+      return date.format(DateTimeFormatter.ofPattern(pattern).withLocale(locale));
+    }
   }
 }

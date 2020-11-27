@@ -176,7 +176,7 @@ namespace Altinn.Studio.Designer
                     defaults: new { controller = "Config" },
                     constraints: new
                     {
-                        controller = "Codelist|Config",
+                        controller = "Config|Datamodels",
                     });
 
                 endpoints.MapControllerRoute(
@@ -204,7 +204,7 @@ namespace Altinn.Studio.Designer
                           {
                               controller = @"(Codelist|Config|Service|RuntimeAPI|ManualTesting|Model|Rules|ServiceMetadata|Text|UI|UIEditor|ServiceDevelopment)",
                               app = "^[a-z]+[a-zA-Z0-9-]+[a-zA-Z0-9]$",
-                              id = "[a-zA-Z0-9_\\-]{1,30}",
+                              id = "[a-zA-Z0-9_\\-\\.]{1,30}",
                           });
 
                 endpoints.MapControllerRoute(

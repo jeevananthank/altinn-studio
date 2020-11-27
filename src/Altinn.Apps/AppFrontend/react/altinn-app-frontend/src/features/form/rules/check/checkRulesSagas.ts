@@ -23,9 +23,7 @@ export interface IResponse {
 }
 
 function* checkIfRuleShouldRunSaga({
-  lastUpdatedComponentId,
   lastUpdatedDataBinding,
-  lastUpdatedDataValue,
   repeatingContainerId,
 }: RuleActions.ICheckIfRuleShouldRun): SagaIterator {
   try {
@@ -34,11 +32,13 @@ function* checkIfRuleShouldRunSaga({
     const formLayoutState: ILayoutState = yield select(selectFormLayoutConnection);
     const formDataModelState: IDataModelState = yield select(selectFormdataModelConnection);
 
+    // const currentLayout = formLayoutState.layouts[formLayoutState.uiConfig.currentView];
+
     const rules: IResponse[] = checkIfRuleShouldRun(
       ruleConnectionState,
       formDataState,
       formDataModelState,
-      formLayoutState,
+      formLayoutState.layouts,
       repeatingContainerId,
       lastUpdatedDataBinding,
     );
@@ -50,11 +50,10 @@ function* checkIfRuleShouldRunSaga({
           return;
         }
 
+        // eslint-disable-next-line consistent-return
         return call(FormDataActions.updateFormData, rule.dataBindingName, rule.result, rule.componentId);
-      }
-      ));
+      }));
     }
-
   } catch (err) {
     yield call(
       console.error,

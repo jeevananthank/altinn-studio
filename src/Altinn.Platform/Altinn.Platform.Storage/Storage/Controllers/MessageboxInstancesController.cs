@@ -17,7 +17,7 @@ using Microsoft.Extensions.Logging;
 namespace Altinn.Platform.Storage.Controllers
 {
     /// <summary>
-    /// Implements endpoints related to messagebox instances
+    /// Implements endpoints specifically for the Altinn II message box.
     /// </summary>
     [Route("storage/api/v1/sbl/instances")]
     [ApiController]
@@ -25,7 +25,7 @@ namespace Altinn.Platform.Storage.Controllers
     {
         private readonly IInstanceRepository _instanceRepository;
         private readonly IInstanceEventRepository _instanceEventRepository;
-        private readonly IApplicationRepository _applicationRepository;
+        private readonly ITextRepository _textRepository;
         private readonly AuthorizationHelper _authorizationHelper;
 
         /// <summary>
@@ -33,19 +33,19 @@ namespace Altinn.Platform.Storage.Controllers
         /// </summary>
         /// <param name="instanceRepository">the instance repository handler</param>
         /// <param name="instanceEventRepository">the instance event repository service</param>
-        /// <param name="applicationRepository">the application repository handler</param>
+        /// <param name="textRepository">the text repository handler</param>
         /// <param name="pdp">the policy decision point</param>
         /// <param name="logger">The logger to be used to perform logging from the controller.</param>
         public MessageBoxInstancesController(
             IInstanceRepository instanceRepository,
             IInstanceEventRepository instanceEventRepository,
-            IApplicationRepository applicationRepository,
+            ITextRepository textRepository,
             IPDP pdp,
             ILogger<AuthorizationHelper> logger)
         {
             _instanceRepository = instanceRepository;
             _instanceEventRepository = instanceEventRepository;
-            _applicationRepository = applicationRepository;
+            _textRepository = textRepository;
             _authorizationHelper = new AuthorizationHelper(pdp, logger);
         }
 
@@ -93,12 +93,14 @@ namespace Altinn.Platform.Storage.Controllers
                 allInstances.ForEach(i => i.DueBefore = null);
             }
 
-            List<MessageBoxInstance> autorizedInstances = await _authorizationHelper.AuthorizeMesseageBoxInstances(HttpContext.User, allInstances);
-            List<string> appIds = autorizedInstances.Select(i => InstanceHelper.GetAppId(i)).Distinct().ToList();
-            Dictionary<string, Dictionary<string, string>> appTitles = await _applicationRepository.GetAppTitles(appIds);
-            List<MessageBoxInstance> messageBoxInstances = InstanceHelper.AddTitleToInstances(autorizedInstances, appTitles, languageId);
+            List<MessageBoxInstance> authorizedInstances =
+                await _authorizationHelper.AuthorizeMesseageBoxInstances(HttpContext.User, allInstances);
+            List<string> appIds = authorizedInstances.Select(i => InstanceHelper.GetAppId(i)).Distinct().ToList();
 
-            return Ok(messageBoxInstances);
+            List<TextResource> texts = await _textRepository.Get(appIds, languageId);
+            InstanceHelper.ReplaceTextKeys(authorizedInstances, texts, languageId);
+
+            return Ok(authorizedInstances);
         }
 
         /// <summary>
@@ -110,7 +112,10 @@ namespace Altinn.Platform.Storage.Controllers
         /// <returns>list of instances</returns>
         [Authorize]
         [HttpGet("{instanceOwnerPartyId:int}/{instanceGuid:guid}")]
-        public async Task<ActionResult> GetMessageBoxInstance(int instanceOwnerPartyId, Guid instanceGuid, [FromQuery] string language)
+        public async Task<ActionResult> GetMessageBoxInstance(
+            int instanceOwnerPartyId,
+            Guid instanceGuid,
+            [FromQuery] string language)
         {
             string[] acceptedLanguages = { "en", "nb", "nn" };
             string languageId = "nb";
@@ -129,7 +134,9 @@ namespace Altinn.Platform.Storage.Controllers
                 return NotFound($"Could not find instance {instanceId}");
             }
 
-            List<MessageBoxInstance> authorizedInstanceList = await _authorizationHelper.AuthorizeMesseageBoxInstances(HttpContext.User, new List<Instance> { instance });
+            List<MessageBoxInstance> authorizedInstanceList =
+                await _authorizationHelper.AuthorizeMesseageBoxInstances(
+                    HttpContext.User, new List<Instance> { instance });
             if (authorizedInstanceList.Count <= 0)
             {
                 return Forbid();
@@ -137,8 +144,9 @@ namespace Altinn.Platform.Storage.Controllers
 
             MessageBoxInstance authorizedInstance = authorizedInstanceList.First();
 
-            Dictionary<string, Dictionary<string, string>> appTitle = await _applicationRepository.GetAppTitles(new List<string> { instance.AppId });
-            InstanceHelper.AddTitleToInstances(new List<MessageBoxInstance> { authorizedInstance }, appTitle, languageId);
+            // get app texts and exchange all text keys.
+            List<TextResource> texts = await _textRepository.Get(new List<string> { instance.AppId }, languageId);
+            InstanceHelper.ReplaceTextKeys(new List<MessageBoxInstance> { authorizedInstance }, texts, languageId);
 
             return Ok(authorizedInstance);
         }
@@ -156,13 +164,14 @@ namespace Altinn.Platform.Storage.Controllers
             [FromRoute] Guid instanceGuid)
         {
             string instanceId = $"{instanceOwnerPartyId}/{instanceGuid}";
-            string[] eventTypes = new string[]
+            string[] eventTypes =
             {
                 InstanceEventType.Created.ToString(),
                 InstanceEventType.Deleted.ToString(),
                 InstanceEventType.Saved.ToString(),
                 InstanceEventType.Submited.ToString(),
-                InstanceEventType.Undeleted.ToString()
+                InstanceEventType.Undeleted.ToString(),
+                InstanceEventType.SubstatusUpdated.ToString()
             };
 
             if (string.IsNullOrEmpty(instanceId))
@@ -170,20 +179,20 @@ namespace Altinn.Platform.Storage.Controllers
                 return BadRequest("Unable to perform query.");
             }
 
-            List<InstanceEvent> result = await _instanceEventRepository.ListInstanceEvents(instanceId, eventTypes, null, null);
+            List<InstanceEvent> allInstanceEvents =
+                await _instanceEventRepository.ListInstanceEvents(instanceId, eventTypes, null, null);
 
-            // filtering out Create & delete data element event
-            result = result.Where(r => string.IsNullOrEmpty(r.DataId) || r.EventType.Equals(InstanceEventType.Saved)).ToList();
+            List<InstanceEvent> filteredInstanceEvents = InstanceEventHelper.RemoveDuplicateEvents(allInstanceEvents);
 
-            return Ok(InstanceHelper.ConvertToSBLInstanceEvent(result));
+            return Ok(InstanceHelper.ConvertToSBLInstanceEvent(filteredInstanceEvents));
         }
 
         /// <summary>
-        /// Undelete a soft deleted instance
+        /// Restore a soft deleted instance
         /// </summary>
         /// <param name="instanceOwnerPartyId">instance owner</param>
         /// <param name="instanceGuid">instance id</param>
-        /// <returns>True if the instance was undeleted.</returns>
+        /// <returns>True if the instance was restored.</returns>
         [Authorize(Policy = AuthzConstants.POLICY_INSTANCE_DELETE)]
         [HttpPut("{instanceOwnerPartyId:int}/{instanceGuid:guid}/undelete")]
         public async Task<ActionResult> Undelete(int instanceOwnerPartyId, Guid instanceGuid)

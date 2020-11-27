@@ -32,7 +32,7 @@ export function textResourcesUrl(language: string) {
   return `${origin}/${org}/${app}/api/v1/texts/${language}`;
 }
 
-export function fileUploadUrl(attachmentType: string, attachmentName: string) {
+export function fileUploadUrl(attachmentType: string) {
   return `${appPath}/instances/` +
   `${altinnWindow.instanceId}/data?dataType=${attachmentType}`;
 }
@@ -47,6 +47,7 @@ export function getProcessStateUrl() {
 
 export function getStartProcessUrl(instanceId?: string) {
   if (!instanceId) {
+    // eslint-disable-next-line no-param-reassign
     instanceId = altinnWindow.instanceId;
   }
   return `${appPath}/instances/${instanceId}/process/start`;
@@ -118,4 +119,8 @@ export const getOptionsUrl = (optionsId: string) => {
 
 export function getJsonSchemaUrl() {
   return `${window.location.origin}/${org}/${app}/api/jsonschema/`;
+}
+
+export function getLayoutSettingsUrl() {
+  return `${window.location.origin}/${org}/${app}/api/layoutsettings`;
 }

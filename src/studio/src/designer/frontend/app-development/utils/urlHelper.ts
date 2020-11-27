@@ -11,11 +11,9 @@ export const releasesUrlGet: string = `${releasesUrlPost}?sortBy=created&sortDir
 export const languageUrl: string = `${origin}/designerapi/Language/GetLanguageAsJSON`;
 export const getOrgsListUrl: string = 'https://altinncdn.no/orgs/altinn-orgs.json';
 
-export const getReleaseBuildPipelineLink = (buildId: string) =>
-  `https://dev.azure.com/brreg/altinn-studio/_build/results?buildId=${buildId}`;
+export const getReleaseBuildPipelineLink = (buildId: string) => `https://dev.azure.com/brreg/altinn-studio/_build/results?buildId=${buildId}`;
 
-export const getGitCommitLink = (commitId: string) =>
-  `${origin}/repos/${org}/${app}/commit/${commitId}`;
+export const getGitCommitLink = (commitId: string) => `${origin}/repos/${org}/${app}/commit/${commitId}`;
 
 export const getAzureDevopsBuildResultUrl = (buildId: string|number): string => {
   return `https://dev.azure.com/brreg/altinn-studio/_build/results?buildId=${buildId}`;
@@ -27,4 +25,12 @@ export const getEnvironmentsConfigUrl = (): string => {
 
 export const getAppDeploymentsUrl = () => {
   return `${origin}/designer/api/v1/${org}/${app}/Deployments`;
+};
+
+export const getFetchDataModelUrl = (filePath: string) => {
+  return `${origin}/designer/api/${org}/${app}/datamodels/GetDatamodel?filePath=${encodeURIComponent(filePath)}`;
+};
+
+export const getSaveDataModelUrl = (filePath: string) => {
+  return `${origin}/designer/api/${org}/${app}/datamodels/UpdateDatamodel?filePath=${encodeURIComponent(filePath)}`;
 };

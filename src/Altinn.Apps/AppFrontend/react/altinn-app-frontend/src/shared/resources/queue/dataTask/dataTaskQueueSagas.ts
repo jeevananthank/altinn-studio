@@ -13,10 +13,11 @@ export function* startInitialDataTaskQueue(): SagaIterator {
 
   yield call(
     FormLayoutActions.fetchFormLayout,
-    `${window.location.origin}/${org}/${app}/api/resource/FormLayout.json`,
+    `${window.location.origin}/${org}/${app}/api/layouts`,
   );
 
   yield call(FormDataActions.fetchFormDataInitial);
+  yield call(FormLayoutActions.fetchFormLayoutSettings);
 
   yield call(
     QueueActions.startInitialDataTaskQueueFulfilled,

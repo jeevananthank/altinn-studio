@@ -172,6 +172,16 @@ namespace Altinn.Studio.Designer.Factories.ModelFactory
                 AppendAnnotated(item, elementSchema);
             }
 
+            if (item.UnhandledAttributes != null) 
+            {
+                int sequence = 1;
+                foreach (XmlAttribute attribute in item.UnhandledAttributes) 
+                {
+                    TagUnhandledAttribute(elementSchema, attribute, sequence);
+                    sequence++;
+                }
+            }
+
             if (item.Constraints.Count > 0)
             {
                 throw new NotImplementedException();
@@ -277,6 +287,16 @@ namespace Altinn.Studio.Designer.Factories.ModelFactory
                 TagAnyAttribute(complexTypeSchema);
             }
 
+            if (item.UnhandledAttributes != null) 
+            {
+                int sequence = 1;
+                foreach (XmlAttribute attribute in item.UnhandledAttributes) 
+                {
+                    TagUnhandledAttribute(complexTypeSchema, attribute, sequence);
+                    sequence++;
+                }
+            }
+
             if (item.Attributes.Count > 0)
             {
                 foreach (XmlSchemaAttribute attribute in item.Attributes)
@@ -339,6 +359,16 @@ namespace Altinn.Studio.Designer.Factories.ModelFactory
             if (item.Annotation != null)
             {
                 AppendAnnotated(item, appendToSchema);
+            }
+
+            if (item.UnhandledAttributes != null) 
+            {
+                int sequence = 1;
+                foreach (XmlAttribute attribute in item.UnhandledAttributes) 
+                {
+                    TagUnhandledAttribute(appendToSchema, attribute, sequence);
+                    sequence++;
+                }
             }
 
             if (item.BaseXmlSchemaType != null)
@@ -837,8 +867,12 @@ namespace Altinn.Studio.Designer.Factories.ModelFactory
             {
                 appendToSchema.Type(JsonSchemaType.Integer);
             }
-            else if ("http://www.w3.org/2001/XMLSchema:positiveInteger".Equals(type)
-                     || "http://www.w3.org/2001/XMLSchema:nonNegativeInteger".Equals(type))
+            else if ("http://www.w3.org/2001/XMLSchema:positiveInteger".Equals(type))
+            {
+                appendToSchema.Type(JsonSchemaType.Integer);
+                SetMinimum(appendToSchema, 1);
+            }
+            else if ("http://www.w3.org/2001/XMLSchema:nonNegativeInteger".Equals(type))
             {
                 appendToSchema.Type(JsonSchemaType.Integer);
                 SetMinimum(appendToSchema, 0);
@@ -1361,6 +1395,11 @@ namespace Altinn.Studio.Designer.Factories.ModelFactory
         private void TagAnyAttribute(JsonSchema appendToSchema)
         {
             Tag(appendToSchema, "@xsdAnyAttribute", true);
+        }
+
+        private void TagUnhandledAttribute(JsonSchema appendToSchema, XmlAttribute attribute, int sequence)
+        {
+            Tag(appendToSchema, "@xsdUnhandledAttribute" + sequence, attribute.Name + "=" + attribute.Value);
         }
 
         private void Tag(JsonSchema appendToSchema, string type, object value)

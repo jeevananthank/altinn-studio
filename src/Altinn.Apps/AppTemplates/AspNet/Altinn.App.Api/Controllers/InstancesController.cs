@@ -13,7 +13,9 @@ using Altinn.App.Common.RequestHandling;
 using Altinn.App.Common.Serialization;
 using Altinn.App.PlatformServices.Extensions;
 using Altinn.App.PlatformServices.Helpers;
+using Altinn.App.PlatformServices.Interface;
 using Altinn.App.PlatformServices.Models;
+using Altinn.App.Services.Configuration;
 using Altinn.App.Services.Helpers;
 using Altinn.App.Services.Interface;
 using Altinn.App.Services.Models.Validation;
@@ -29,7 +31,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
-
+using Microsoft.Extensions.Options;
 using Newtonsoft.Json;
 
 namespace Altinn.App.Api.Controllers
@@ -53,6 +55,9 @@ namespace Altinn.App.Api.Controllers
         private readonly IAltinnApp _altinnApp;
         private readonly IProcess _processService;
         private readonly IPDP _pdp;
+        private readonly IEvents _eventsService;
+
+        private readonly AppSettings _appSettings;
 
         private const long RequestSizeLimit = 2000 * 1024 * 1024;
 
@@ -67,7 +72,9 @@ namespace Altinn.App.Api.Controllers
             IAppResources appResourcesService,
             IAltinnApp altinnApp,
             IProcess processService,
-            IPDP pdp)
+            IPDP pdp,
+            IEvents eventsService,
+            IOptions<AppSettings> appSettings)
         {
             _logger = logger;
             _instanceService = instanceService;
@@ -76,8 +83,9 @@ namespace Altinn.App.Api.Controllers
             _registerService = registerService;
             _altinnApp = altinnApp;
             _processService = processService;
-
             _pdp = pdp;
+            _eventsService = eventsService;
+            _appSettings = appSettings.Value;
         }
 
         /// <summary>
@@ -201,7 +209,7 @@ namespace Altinn.App.Api.Controllers
             {
                 InstanceOwner lookup = instanceTemplate.InstanceOwner;
 
-                if (lookup == null || lookup.PersonNumber == null && lookup.OrganisationNumber == null && lookup.PartyId == null)
+                if (lookup == null || (lookup.PersonNumber == null && lookup.OrganisationNumber == null && lookup.PartyId == null))
                 {
                     return BadRequest("Error: instanceOwnerPartyId query parameter is empty and InstanceOwner is missing from instance template. You must populate instanceOwnerPartyId or InstanceOwner");
                 }
@@ -282,6 +290,8 @@ namespace Altinn.App.Api.Controllers
                 return ExceptionResponse(exception, $"Instantiation of data elements failed for instance {instance.Id} for party {instanceTemplate.InstanceOwner?.PartyId}");
             }
 
+            await RegisterInstanceCreatedEvent(instance);
+
             SelfLinkHelper.SetInstanceAppSelfLinks(instance, Request);
             string url = instance.SelfLinks.Apps;
 
@@ -296,8 +306,6 @@ namespace Altinn.App.Api.Controllers
         /// collected all the data and information they needed from the instance and expect no additional data to be added to it.
         /// The body of the request isn't used for anything despite this being a POST operation.
         /// </remarks>
-        /// <param name="org">unique identifier of the organisation responsible for the app</param>
-        /// <param name="app">application identifier which is unique within an organisation</param>
         /// <param name="instanceOwnerPartyId">The party id of the instance owner.</param>
         /// <param name="instanceGuid">The id of the instance to confirm as complete.</param>
         /// <returns>Returns the instance with updated list of confirmations.</returns>
@@ -306,8 +314,6 @@ namespace Altinn.App.Api.Controllers
         [ProducesResponseType(StatusCodes.Status200OK)]
         [Produces("application/json")]
         public async Task<ActionResult<Instance>> AddCompleteConfirmation(
-            [FromRoute] string org,
-            [FromRoute] string app,
             [FromRoute] int instanceOwnerPartyId,
             [FromRoute] Guid instanceGuid)
         {
@@ -321,6 +327,82 @@ namespace Altinn.App.Api.Controllers
             catch (Exception exception)
             {
                 return ExceptionResponse(exception, $"Adding complete confirmation to instance {instanceOwnerPartyId}/{instanceGuid} failed");
+            }
+        }
+
+        /// <summary>
+        /// Allows an app owner to update the substatus of an instance.
+        /// </summary>
+        /// <param name="org">unique identifier of the organisation responsible for the app</param>
+        /// <param name="app">application identifier which is unique within an organisation</param>
+        /// <param name="instanceOwnerPartyId">The party id of the instance owner.</param>
+        /// <param name="instanceGuid">The id of the instance to update.</param>
+        /// <param name="substatus">The new substatus of the instance.</param>
+        /// <returns>Returns the instance with updated substatus.</returns>
+        [Authorize]
+        [HttpPut("{instanceOwnerPartyId:int}/{instanceGuid:guid}/substatus")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [Produces("application/json")]
+        public async Task<ActionResult<Instance>> UpdateSubstatus(
+            [FromRoute] string org,
+            [FromRoute] string app,
+            [FromRoute] int instanceOwnerPartyId,
+            [FromRoute] Guid instanceGuid,
+            [FromBody] Substatus substatus)
+        {
+            if (substatus == null || string.IsNullOrEmpty(substatus.Label))
+            {
+                return BadRequest($"Invalid sub status: {JsonConvert.SerializeObject(substatus)}. Substatus must be defined and include a label.");
+            }
+
+            Instance instance = await _instanceService.GetInstance(app, org, instanceOwnerPartyId, instanceGuid);
+
+            string orgClaim = User.GetOrg();
+            if (!instance.Org.Equals(orgClaim))
+            {
+                return Forbid();
+            }
+
+            try
+            {
+                Instance updatedInstance = await _instanceService.UpdateSubstatus(instanceOwnerPartyId, instanceGuid, substatus);
+                SelfLinkHelper.SetInstanceAppSelfLinks(instance, Request);
+
+                return Ok(updatedInstance);
+            }
+            catch (Exception exception)
+            {
+                return ExceptionResponse(exception, $"Updating substatus for instance {instanceOwnerPartyId}/{instanceGuid} failed.");
+            }
+        }
+
+        /// <summary>
+        /// Deletes an instance.
+        /// </summary>
+        /// <param name="instanceOwnerPartyId">The party id of the instance owner.</param>
+        /// <param name="instanceGuid">The id of the instance to delete.</param>
+        /// <param name="hard">A value indicating whether the instance should be unrecoverable.</param>
+        /// <returns>Returns the deleted instance.</returns>
+        [Authorize(Policy = AuthzConstants.POLICY_INSTANCE_DELETE)]
+        [HttpDelete("{instanceOwnerPartyId:int}/{instanceGuid:guid}")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [Produces("application/json")]
+        public async Task<ActionResult<Instance>> DeleteInstance(
+            [FromRoute] int instanceOwnerPartyId,
+            [FromRoute] Guid instanceGuid,
+            [FromQuery] bool hard)
+        {
+            try
+            {
+                Instance deletedInstance = await _instanceService.DeleteInstance(instanceOwnerPartyId, instanceGuid, hard);
+                SelfLinkHelper.SetInstanceAppSelfLinks(deletedInstance, Request);
+
+                return Ok(deletedInstance);
+            }
+            catch (Exception exception)
+            {
+                return ExceptionResponse(exception, $"Deleting instance {instanceOwnerPartyId}/{instanceGuid} failed.");
             }
         }
 
@@ -513,6 +595,21 @@ namespace Altinn.App.Api.Controllers
             }
 
             return instanceTemplate;
+        }
+
+        private async Task RegisterInstanceCreatedEvent(Instance instance)
+        {
+            if (_appSettings.RegisterEventsWithEventsComponent)
+            {
+                try
+                {
+                    await _eventsService.AddEvent("app.instance.created", instance);
+                }
+                catch (Exception exception)
+                {
+                    _logger.LogWarning(exception, "Exception when sending event with the Events component.");
+                }
+            }
         }
     }
 }

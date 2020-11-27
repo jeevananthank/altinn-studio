@@ -3,6 +3,21 @@ import { IRuntimeState } from '../src/types';
 import { getFormLayoutStateMock } from './formLayoutStateMock';
 import { getFormDataStateMock } from './formDataStateMock';
 import { applicationMetadataMock } from './applicationMetadataMock';
+import { IParty } from '../../shared/src';
+import { getInstanceDataStateMock } from './instanceDataStateMock';
+import { getProfileStateMock } from './profileStateMock';
+
+export const mockParty: IParty = {
+  partyId: '12345',
+  name: 'Ola Privatperson',
+  ssn: '01017512345',
+  partyTypeName: null,
+  orgNumber: null,
+  unitType: null,
+  isDeleted: false,
+  onlyHierarchyElementWithNoAccess: false,
+  childParties: null,
+};
 
 export function getInitialStateMock(customStates?: Partial<IRuntimeState>): IRuntimeState {
   const initialState: IRuntimeState = {
@@ -36,11 +51,9 @@ export function getInitialStateMock(customStates?: Partial<IRuntimeState>): IRun
       validations: {},
       error: null,
       invalidDataTypes: [],
+      currentSingleFieldValidation: null,
     },
-    instanceData: {
-      error: null,
-      instance: null,
-    },
+    instanceData: getInstanceDataStateMock(),
     instantiation: {
       error: null,
       instanceId: null,
@@ -50,7 +63,7 @@ export function getInitialStateMock(customStates?: Partial<IRuntimeState>): IRun
       dataTask: false,
     },
     language: {
-      language: getLanguageFromCode('1044'),
+      language: getLanguageFromCode('nb'),
       error: null,
     },
     organisationMetaData: {
@@ -59,17 +72,16 @@ export function getInitialStateMock(customStates?: Partial<IRuntimeState>): IRun
     },
     party: {
       error: null,
-      parties: [],
-      selectedParty: null,
+      parties: [
+        mockParty,
+      ],
+      selectedParty: mockParty,
     },
     process: {
       error: null,
       state: null,
     },
-    profile: {
-      error: null,
-      profile: null,
-    },
+    profile: getProfileStateMock(),
     queue: {
       appTask: null,
       dataTask: null,

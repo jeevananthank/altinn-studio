@@ -37,7 +37,7 @@ export const returnUrlToMessagebox = (url: string, partyId?: string | undefined)
     return baseUrl + pathToMessageBox;
   }
 
-  return `${baseUrl}${pathToMessageBox}`;
+  return `${baseUrl}ui/Reportee/ChangeReporteeAndRedirect?goTo=${baseUrl}${pathToMessageBox}&R=${partyId}`;
 };
 
 export const returnUrlToProfile = (url: string, partyId?: string | undefined): string => {
@@ -50,7 +50,7 @@ export const returnUrlToProfile = (url: string, partyId?: string | undefined): s
     return baseUrl + pathToProfile;
   }
 
-  return `${baseUrl}${pathToProfile}`;
+  return `${baseUrl}ui/Reportee/ChangeReporteeAndRedirect?goTo=${baseUrl}${pathToProfile}&R=${partyId}`;
 };
 
 export const returnUrlToAllSchemas = (url: string): string => {
@@ -82,3 +82,10 @@ export const returnBaseUrlToAltinn = (url: string): string => {
   }
   return result;
 };
+
+export function customEncodeURI(uri:string): string {
+  let result: string;
+  result = encodeURIComponent(uri);
+  result = result.replace(/[/(]/gi, '%28').replace(/[/)]/gi, '%29');
+  return result;
+}

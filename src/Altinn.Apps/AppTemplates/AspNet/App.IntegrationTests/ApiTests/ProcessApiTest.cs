@@ -1,16 +1,19 @@
-using Altinn.App.IntegrationTests;
-using Altinn.Platform.Storage.Interface.Models;
-using App.IntegrationTests.Utils;
-using App.IntegrationTestsRef.Utils;
-using Newtonsoft.Json;
+using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Net;
 using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Threading.Tasks;
+
+using Altinn.App.IntegrationTests;
+using Altinn.Platform.Storage.Interface.Models;
+using App.IntegrationTests.Mocks.Services;
+using App.IntegrationTests.Utils;
+using App.IntegrationTestsRef.Utils;
+
+using Newtonsoft.Json;
 using Xunit;
-using System.Linq;
-using System;
 
 namespace App.IntegrationTests.ApiTests
 {
@@ -21,6 +24,8 @@ namespace App.IntegrationTests.ApiTests
         public ProcessApiTest(CustomWebApplicationFactory<Altinn.App.Startup> factory)
         {
             _factory = factory;
+
+            EventsMockSI.Requests.Clear();
         }
 
         [Fact]
@@ -41,7 +46,6 @@ namespace App.IntegrationTests.ApiTests
 
             string responseContent = await response.Content.ReadAsStringAsync();
             ProcessState processState= (ProcessState)JsonConvert.DeserializeObject(responseContent, typeof(ProcessState));
-
 
             Assert.Equal(HttpStatusCode.OK, response.StatusCode);
             Assert.Equal("Task_1", processState.CurrentTask.ElementId);
@@ -67,7 +71,6 @@ namespace App.IntegrationTests.ApiTests
 
             List<string> events = (List<string>)JsonConvert.DeserializeObject(responseContent, typeof(List<string>));
 
-
             Assert.Equal(HttpStatusCode.OK, response.StatusCode);
             Assert.Single(events);
         }
@@ -92,7 +95,7 @@ namespace App.IntegrationTests.ApiTests
             TestDataUtil.DeleteInstanceAndData("tdd", "endring-av-navn", 1337, new System.Guid("26233fb5-a9f2-45d4-90b1-f6d93ad40713"));
         }
 
-                [Fact]
+        [Fact]
         public async Task Proceess_Start_With_Prefill_OK()
         {
             TestDataUtil.DeleteInstanceAndData("tdd", "endring-av-navn", 1337, new System.Guid("26233fb5-a9f2-45d4-90b1-f6d93ad40713"));
@@ -152,6 +155,41 @@ namespace App.IntegrationTests.ApiTests
         }
 
         [Fact]
+        public async Task Next_RegistrationOfEventsTurnedOn_ControllerCallsEventWithCorrectType()
+        {
+            string org = "ttd";
+            string app = "events";
+            int partyId = 1337;
+            string instanceGuid = "bffd2c17-9d93-49f4-b504-3d0ece2402c6";
+
+            TestDataUtil.DeleteInstanceAndData(org, app, partyId, new Guid(instanceGuid));
+            TestDataUtil.PrepareInstance(org, app, partyId, new Guid(instanceGuid));
+
+            string token = PrincipalUtil.GetToken(partyId);
+
+            string instancePath = $"/{org}/{app}/instances/{partyId}/{instanceGuid}";
+
+            HttpClient client = SetupUtil.GetTestClient(_factory, org, app);
+            client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+            HttpRequestMessage httpRequestMessage = new HttpRequestMessage(HttpMethod.Put, $"{instancePath}/process/next");
+            HttpResponseMessage response = await client.SendAsync(httpRequestMessage);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                Assert.True(false, "The next request failed.");
+            }
+
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+            //// Commented out the Asserts as another test might clear the Requests list and then fail these
+            ////Assert.Equal("app.instance.process.completed", EventsMockSI.Requests.First().eventType);
+            ////Assert.NotNull(EventsMockSI.Requests.First().instance);
+
+            TestDataUtil.DeleteInstanceAndData(org, app, partyId, new Guid(instanceGuid));
+        }
+
+        [Fact]
         public async Task Proceess_End_AfterNext_OK()
         {
             TestDataUtil.DeleteInstanceAndData("tdd", "endring-av-navn", 1337, new System.Guid("26233fb5-a9f2-45d4-90b1-f6d93ad40713"));
@@ -179,7 +217,6 @@ namespace App.IntegrationTests.ApiTests
 
             Assert.NotNull(status.Ended);
             Assert.Null(status.CurrentTask);
-
 
             httpRequestMessage = new HttpRequestMessage(HttpMethod.Get, $"{instancePath}");
             response = await client.SendAsync(httpRequestMessage);

@@ -3,7 +3,7 @@
 import * as React from 'react';
 import { useSelector, shallowEqual } from 'react-redux';
 import { getTextResourceByKey } from 'altinn-shared/utils';
-import { IDataModelFieldElement, ITextResource } from 'src/types';
+import { IDataModelFieldElement, ITextResource, Triggers } from 'src/types';
 import { IComponentValidations } from 'src/types';
 import { ILanguageState } from '../shared/resources/language/languageReducers';
 // eslint-disable-next-line import/no-cycle
@@ -12,6 +12,7 @@ import FormDataActions from '../features/form/data/formDataActions';
 import { IFormData } from '../features/form/data/formDataReducer';
 import { IDataModelBindings, ITextResourceBindings } from '../features/form/layout';
 import RuleActions from '../features/form/rules/rulesActions';
+import ValidationActions from '../features/form/validation/validationActions';
 import { makeGetFocus, makeGetHidden } from '../selectors/getLayoutData';
 import { IRuntimeState } from '../types';
 import Label from '../features/form/components/Label';
@@ -21,7 +22,8 @@ import { getFormDataForComponent,
   isSimpleComponent,
   componentHasValidationMessages,
   getTextResource,
-  isComponentValid } from '../utils/formComponentUtils';
+  isComponentValid,
+  selectComponentTexts } from '../utils/formComponentUtils';
 import FormLayoutActions from '../features/form/layout/formLayoutActions';
 import Description from '../features/form/components/Description';
 
@@ -33,6 +35,7 @@ export interface IGenericComponentProps {
   componentValidations?: IComponentValidations;
   readOnly: boolean;
   required: boolean;
+  triggers?: Triggers[];
 }
 
 export function GenericComponent(props: IGenericComponentProps) {
@@ -51,6 +54,7 @@ export function GenericComponent(props: IGenericComponentProps) {
   const isValid: boolean = useSelector((state: IRuntimeState) => isComponentValid(state.formValidations.validations[props.id]));
   const language: ILanguageState = useSelector((state: IRuntimeState) => state.language.language);
   const textResources: ITextResource[] = useSelector((state: IRuntimeState) => state.textResources.resources);
+  const texts: any = useSelector((state: IRuntimeState) => selectComponentTexts(state.textResources.resources, props.textResourceBindings));
   const hidden: boolean = useSelector((state: IRuntimeState) => GetHiddenSelector(state, props));
   const shouldFocus: boolean = useSelector((state: IRuntimeState) => GetFocusSelector(state, props));
   const componentValidations: IComponentValidations = useSelector((state: IRuntimeState) => state.formValidations.validations[props.id], shallowEqual);
@@ -75,14 +79,12 @@ export function GenericComponent(props: IGenericComponentProps) {
     }
 
     const dataModelField = props.dataModelBindings[key];
+    if (props.triggers && props.triggers.includes(Triggers.Validation)) {
+      ValidationActions.setCurrentSingleFieldValidation(dataModelField);
+    }
+
     FormDataActions.updateFormData(dataModelField, value, props.id);
-    // Disable single field validation, enable when supported server-side
-    // const component = layoutElement as ILayoutComponent;
-    // if (component && component.triggerValidation) {
-    //   const { org, app, instanceId } = window as Window as IAltinnWindow;
-    //   const url = `${window.location.origin}/${org}/${app}/instances/${instanceId}`;
-    //   ValidationActions.runSingleFieldValidation(url, dataModelField);
-    // }
+
     const dataModelElement = dataModel.find(
       (element) => element.dataBindingName === props.dataModelBindings[key],
     );
@@ -113,14 +115,11 @@ export function GenericComponent(props: IGenericComponentProps) {
   const RenderComponent = components.find((componentCandidate: any) => componentCandidate.name === props.type).Tag;
 
   const RenderLabel = () => {
-    const labelText = getTextResource(props?.textResourceBindings?.title, textResources);
-    const helpText = getTextResource(props?.textResourceBindings?.help, textResources);
     return (
       <Label
-        labelText={labelText}
-        helpText={helpText}
+        labelText={texts.title}
+        helpText={texts.help}
         language={language}
-        textResourceBindings={textResources}
         {...props}
         {...passThroughProps}
       />
@@ -131,10 +130,9 @@ export function GenericComponent(props: IGenericComponentProps) {
     if (!props.textResourceBindings.description) {
       return null;
     }
-    const descriptionText = getTextResource(props.textResourceBindings.description, textResources);
     return (
       <Description
-        description={descriptionText}
+        description={texts.description}
         id={id}
         {...passThroughProps}
       />
@@ -144,11 +142,10 @@ export function GenericComponent(props: IGenericComponentProps) {
   const RenderLegend = () => {
     return (
       <Legend
-        labelText={getTextResource(props?.textResourceBindings?.title, textResources)}
-        descriptionText={getTextResource(props?.textResourceBindings?.description, textResources)}
-        helpText={getTextResource(props?.textResourceBindings?.help, textResources)}
+        labelText={texts.title}
+        descriptionText={texts.description}
+        helpText={texts.help}
         language={language}
-        textResourceBindings={textResources}
         {...props}
         {...passThroughProps}
       />
@@ -161,7 +158,7 @@ export function GenericComponent(props: IGenericComponentProps) {
       return getTextResourceByKey(props.textResourceBindings.title, textResources);
     }
 
-    return getTextResource(props.textResourceBindings.title, textResources);
+    return texts.title;
   };
 
   const getTextResourceWrapper = (key: string) => {

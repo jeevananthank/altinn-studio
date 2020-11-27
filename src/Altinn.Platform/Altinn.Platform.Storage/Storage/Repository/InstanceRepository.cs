@@ -31,6 +31,7 @@ namespace Altinn.Platform.Storage.Repository
         private readonly IDataRepository _dataRepository;
 
         private readonly DocumentClient _client;
+        private readonly AzureCosmosSettings _settings;
 
         /// <summary>
         /// Initializes a new instance of the <see cref="InstanceRepository"/> class
@@ -45,6 +46,8 @@ namespace Altinn.Platform.Storage.Repository
         {
             _logger = logger;
             _dataRepository = dataRepository;
+
+            _settings = cosmosSettings.Value;
 
             CosmosDatabaseHandler database = new CosmosDatabaseHandler(cosmosSettings.Value);
 
@@ -96,66 +99,68 @@ namespace Altinn.Platform.Storage.Repository
             string continuationToken,
             int size)
         {
-            InstanceQueryResponse queryResponse = new InstanceQueryResponse();
-
-            FeedOptions feedOptions = new FeedOptions
+            InstanceQueryResponse queryResponse = new InstanceQueryResponse
             {
-                EnableCrossPartitionQuery = true,
-                MaxItemCount = size,
+                Count = 0,
+                Instances = new List<Instance>()
             };
 
-            if (continuationToken != null)
+            while (queryResponse.Count < size)
             {
-                feedOptions.RequestContinuation = continuationToken;
-            }
-
-            IQueryable<Instance> queryBuilder = _client.CreateDocumentQuery<Instance>(_collectionUri, feedOptions);
-
-            try
-            {
-                queryBuilder = BuildQueryFromParameters(queryParams, queryBuilder);
-            }
-            catch (Exception e)
-            {
-                queryResponse.Exception = e.Message;
-                return queryResponse;
-            }
-
-            try
-            {
-                IDocumentQuery<Instance> documentQuery = queryBuilder.AsDocumentQuery();
-
-                FeedResponse<Instance> feedResponse = await documentQuery.ExecuteNextAsync<Instance>();
-                if (feedResponse.Count <= 0)
+                FeedOptions feedOptions = new FeedOptions
                 {
-                    queryResponse.Count = 0;
-                    queryResponse.TotalHits = 0;
-                    queryResponse.Instances = new List<Instance>();
+                    EnableCrossPartitionQuery = true,
+                    MaxItemCount = size - queryResponse.Count,
+                };
 
+                if (continuationToken != null)
+                {
+                    feedOptions.RequestContinuation = continuationToken;
+                }
+
+                IQueryable<Instance> queryBuilder = _client.CreateDocumentQuery<Instance>(_collectionUri, feedOptions);
+
+                try
+                {
+                    queryBuilder = BuildQueryFromParameters(queryParams, queryBuilder);
+                }
+                catch (Exception e)
+                {
+                    queryResponse.Exception = e.Message;
                     return queryResponse;
                 }
 
-                string nextContinuationToken = feedResponse.ResponseContinuation;
+                try
+                {
+                    IDocumentQuery<Instance> documentQuery = queryBuilder.AsDocumentQuery();
 
-                _logger.LogInformation($"continuation token: {nextContinuationToken}");
+                    FeedResponse<Instance> feedResponse = await documentQuery.ExecuteNextAsync<Instance>();
+                    if (feedResponse.Count == 0)
+                    {
+                        queryResponse.ContinuationToken = string.Empty;
+                        break;
+                    }
 
-                // this migth be expensive
-                feedOptions.RequestContinuation = null;
-                int totalHits = queryBuilder.Count();
-                queryResponse.TotalHits = totalHits;
+                    List<Instance> instances = feedResponse.ToList();
+                    await PostProcess(instances);
+                    queryResponse.Instances.AddRange(instances);
+                    queryResponse.Count += instances.Count;
 
-                List<Instance> instances = feedResponse.ToList();
+                    if (string.IsNullOrEmpty(feedResponse.ResponseContinuation))
+                    {
+                        queryResponse.ContinuationToken = string.Empty;
+                        break;
+                    }
 
-                await PostProcess(instances);
-
-                queryResponse.Instances = instances;
-                queryResponse.ContinuationToken = nextContinuationToken;
-                queryResponse.Count = instances.Count;
-            }
-            catch (Exception e)
-            {
-                _logger.LogError("error: {e}");
-                queryResponse.Exception = e.Message;
+                    queryResponse.ContinuationToken = feedResponse.ResponseContinuation;
+                    continuationToken = feedResponse.ResponseContinuation;
+                }
+                catch (Exception e)
+                {
+                    _logger.LogError(e, "Exception querying CosmosDB for instances");
+                    queryResponse.Exception = e.Message;
+                    break;
+                }
             }
 
             return queryResponse;
@@ -220,7 +225,7 @@ namespace Altinn.Platform.Storage.Repository
                             }
                             else
                             {
-                                queryBuilder = queryBuilder.Where(i => i.Process.Ended == null);
+                                queryBuilder = queryBuilder.Where(i => i.Process.CurrentTask != null);
                             }
 
                             break;
@@ -229,6 +234,9 @@ namespace Altinn.Platform.Storage.Repository
                             queryBuilder = QueryBuilderForEnded(queryBuilder, queryValue);
                             break;
 
+                        case "excludeConfirmedBy":
+                            queryBuilder = QueryBuilderExcludeConfirmedBy(queryBuilder, queryValue);
+                            break;
                         default:
                             throw new ArgumentException($"Unknown query parameter: {queryParameter}");
                     }
@@ -355,6 +363,14 @@ namespace Altinn.Platform.Storage.Repository
             return queryBuilder.Where(i => i.Process.Ended == dateValue);
         }
 
+        private IQueryable<Instance> QueryBuilderExcludeConfirmedBy(IQueryable<Instance> queryBuilder, string queryValue)
+        {
+            return queryBuilder.Where(i =>
+
+                // A slightly more readable variant would be to use All( != ), but All() isn't supported.
+                !i.CompleteConfirmations.Any(cc => cc.StakeholderId == queryValue));
+        }
+
         // Limitations in queryBuilder.Where interface forces me to duplicate the datetime methods
         private IQueryable<Instance> QueryBuilderForCreated(IQueryable<Instance> queryBuilder, string queryValue)
         {
@@ -465,6 +481,11 @@ namespace Altinn.Platform.Storage.Repository
                 PartitionKey = new PartitionKey(instanceOwnerPartyIdString)
             };
 
+            if (_settings.CollectMetrics)
+            {
+                feedOptions.PopulateQueryMetrics = true;
+            }
+
             IQueryable<Instance> filter;
 
             if (instanceState.Equals("active"))
@@ -489,7 +510,8 @@ namespace Altinn.Platform.Storage.Repository
                        .Where(i => i.InstanceOwner.PartyId == instanceOwnerPartyIdString)
                        .Where(i => i.Status.Archived.HasValue)
                        .Where(i => !i.Status.SoftDeleted.HasValue)
-                       .Where(i => !i.Status.HardDeleted.HasValue);
+                       .Where(i => !i.Status.HardDeleted.HasValue)
+                       .OrderByDescending(i => i.Status.Archived);
             }
             else
             {
@@ -500,6 +522,11 @@ namespace Altinn.Platform.Storage.Repository
             IDocumentQuery<Instance> query = filter.AsDocumentQuery();
 
             FeedResponse<Instance> feedResponse = await query.ExecuteNextAsync<Instance>();
+
+            if (_settings.CollectMetrics)
+            {
+                _logger.LogError($"Metrics retrieving {instanceState} instances for {instanceOwnerPartyId}: {JsonConvert.SerializeObject(feedResponse.QueryMetrics)}");
+            }
 
             instances = feedResponse.ToList();
 

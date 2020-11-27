@@ -1,3 +1,4 @@
+/* eslint-disable no-undef */
 /* eslint-disable import/order */
 /* eslint-disable jsx-a11y/interactive-supports-focus */
 /* eslint-disable jsx-a11y/click-events-have-key-events */
@@ -17,7 +18,7 @@ import '../../styles/FileUploadComponent.css';
 import { IRuntimeState } from '../../types';
 import { IComponentValidations } from '../../types';
 import { renderValidationMessagesForComponent } from '../../utils/render';
-import uuid = require('uuid');
+import { v4 as uuidv4 } from 'uuid';
 
 export interface IFileUploadProps {
   displayMode: string;
@@ -38,7 +39,7 @@ const baseStyle = {
   height: '15.6rem',
   borderWidth: '2px',
   borderColor: AltinnAppTheme.altinnPalette.primary.blueMedium,
-  borderStyle: 'dashed',
+  borderStyle: 'dotted',
   cursor: 'pointer',
 };
 const activeStyle = {
@@ -49,7 +50,7 @@ const rejectStyle = {
   borderColor: AltinnAppTheme.altinnPalette.primary.red,
 };
 const validationErrorStyle = {
-  borderStyle: 'dashed',
+  borderStyle: 'dotted',
   borderColor: AltinnAppTheme.altinnPalette.primary.red,
 };
 
@@ -68,7 +69,7 @@ export function FileUploadComponent(props: IFileUploadProps) {
     }
 
     if (action.type === 'add') {
-      return action.value;
+      return state.concat(action.value);
     }
 
     if (action.type === 'delete') {
@@ -129,7 +130,7 @@ export function FileUploadComponent(props: IFileUploadProps) {
       // we should upload all files, if any rejected files we should display an error
       acceptedFiles.forEach((file: File) => {
         if ((attachments.length + newFiles.length) < props.maxNumberOfAttachments) {
-          const tmpId: string = uuid();
+          const tmpId: string = uuidv4();
           newFiles.push({
             name: file.name, size: file.size, uploaded: false, id: tmpId, deleting: false,
           });
@@ -158,9 +159,6 @@ export function FileUploadComponent(props: IFileUploadProps) {
           }
         });
       }
-    }
-    if (totalAttachments <= props.maxNumberOfAttachments) {
-      dispatch({ type: 'add', value: newFiles });
     }
     setValidations(tmpValidations);
   };
