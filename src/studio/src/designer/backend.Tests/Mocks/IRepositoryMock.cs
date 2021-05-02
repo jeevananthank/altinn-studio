@@ -4,12 +4,14 @@ using System.IO;
 using System.Text;
 using System.Threading.Tasks;
 using System.Xml.Linq;
-using Altinn.Platform.Storage.Interface.Models;
+
 using Altinn.Studio.Designer.Configuration;
 using Altinn.Studio.Designer.ModelMetadatalModels;
 using Altinn.Studio.Designer.Models;
 using Altinn.Studio.Designer.RepositoryClient.Model;
 using Altinn.Studio.Designer.Services.Interfaces;
+
+using PlatformStorageModels = Altinn.Platform.Storage.Interface.Models;
 
 namespace Designer.Tests.Mocks
 {
@@ -40,11 +42,6 @@ namespace Designer.Tests.Mocks
             throw new NotImplementedException();
         }
 
-        public bool DeleteCodeList(string org, string app, string name)
-        {
-            throw new NotImplementedException();
-        }
-
         public void DeleteData(string org, string repo, string path)
         {
             throw new NotImplementedException();
@@ -70,7 +67,7 @@ namespace Designer.Tests.Mocks
             throw new NotImplementedException();
         }
 
-        public Application GetApplication(string org, string app)
+        public PlatformStorageModels.Application GetApplication(string org, string app)
         {
             throw new NotImplementedException();
         }
@@ -91,16 +88,6 @@ namespace Designer.Tests.Mocks
         }
 
         public List<AltinnCoreFile> GetCalculationFiles(string org, string app)
-        {
-            throw new NotImplementedException();
-        }
-
-        public string GetCodelist(string org, string app, string name)
-        {
-            throw new NotImplementedException();
-        }
-
-        public Dictionary<string, string> GetCodelists(string org, string app)
         {
             throw new NotImplementedException();
         }
@@ -145,6 +132,11 @@ namespace Designer.Tests.Mocks
             throw new NotImplementedException();
         }
 
+        public string GetJsonFormLayouts(string org, string app)
+        {
+            throw new NotImplementedException();
+        }
+
         public string GetJsonThirdPartyComponents(string org, string app)
         {
             throw new NotImplementedException();
@@ -185,12 +177,37 @@ namespace Designer.Tests.Mocks
             throw new NotImplementedException();
         }
 
+        public bool SaveFormLayout(string org, string app, string formLayout, string content)
+        {
+            throw new NotImplementedException();
+        }
+
+        public bool UpdateFormLayoutName(string org, string app, string currentName, string newName)
+        {
+            throw new NotImplementedException();
+        }
+
+        public bool DeleteFormLayout(string org, string app, string formLayout)
+        {
+            throw new NotImplementedException();
+        }
+
+        public bool SaveLayoutSettings(string org, string app, string setting)
+        {
+            throw new NotImplementedException();
+        }
+
+        public string GetLayoutSettings(string org, string app)
+        {
+            throw new NotImplementedException();
+        }
+
         public byte[] GetServiceResource(string org, string app, string resource)
         {
             throw new NotImplementedException();
         }
 
-        public Dictionary<string, Dictionary<string, string>> GetServiceTexts(string org, string app)
+        public Dictionary<string, Dictionary<string, TextResourceElement>> GetServiceTexts(string org, string app)
         {
             throw new NotImplementedException();
         }
@@ -216,11 +233,6 @@ namespace Designer.Tests.Mocks
         }
 
         public void SaveAppLogicFile(string org, string app, string fileName, string fileContent)
-        {
-            throw new NotImplementedException();
-        }
-
-        public bool SaveCodeList(string org, string app, string name, string codelist)
         {
             throw new NotImplementedException();
         }
@@ -275,7 +287,7 @@ namespace Designer.Tests.Mocks
             throw new NotImplementedException();
         }
 
-        public bool UpdateApplication(string org, string app, Application applicationMetadata)
+        public bool UpdateApplication(string org, string app, PlatformStorageModels.Application applicationMetadata)
         {
             throw new NotImplementedException();
         }
@@ -306,6 +318,31 @@ namespace Designer.Tests.Mocks
         }
 
         public Task WriteData(string org, string repo, string filepath, Stream stream)
+        {
+            throw new NotImplementedException();
+        }
+
+        public string GetWidgetSettings(string org, string app)
+        {
+            throw new NotImplementedException();
+        }
+
+        public bool AddTextResources(string org, string app, List<TextResource> textResourceList)
+        {
+            throw new NotImplementedException();
+        }
+
+        public string GetAppPath(string org, string app)
+        {
+            throw new NotImplementedException();
+        }
+
+        public void SaveServiceTexts(string org, string app, Dictionary<string, Dictionary<string, TextResourceElement>> texts)
+        {
+            throw new NotImplementedException();
+        }
+
+        public void UpdateApplicationWithAppLogicModel(string org, string app, string dataTypeId, string classRef)
         {
             throw new NotImplementedException();
         }

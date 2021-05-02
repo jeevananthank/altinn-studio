@@ -1,6 +1,6 @@
 /* eslint-disable react/prop-types */
 import * as React from 'react';
-import { useSelector } from 'react-redux';
+import { useDispatch, useSelector } from 'react-redux';
 import { getLanguageFromKey } from 'altinn-shared/utils/language';
 import { AltinnLoader } from 'altinn-shared/components';
 import { IAltinnWindow, IRuntimeState } from '../../types';
@@ -16,9 +16,11 @@ export interface IButtonProvidedProps {
 }
 
 export function ButtonComponent(props: IButtonProvidedProps) {
+  const dispatch = useDispatch();
   const autoSave = useSelector((state: IRuntimeState) => state.formLayout.uiConfig.autoSave);
   const isSubmitting = useSelector((state: IRuntimeState) => state.formData.isSubmitting);
   const isSaving = useSelector((state: IRuntimeState) => state.formData.isSaving);
+  const ignoreWarnings = useSelector((state: IRuntimeState) => state.formData.ignoreWarnings);
 
   const renderSubmitButton = () => {
     return (
@@ -59,12 +61,7 @@ export function ButtonComponent(props: IButtonProvidedProps) {
   };
 
   const saveFormData = () => {
-    const {
-      org, app, instanceId,
-    } = window as Window as IAltinnWindow;
-    FormDataActions.submitFormData(
-      `${window.location.origin}/${org}/${app}/api/${instanceId}`,
-    );
+    dispatch(FormDataActions.submitFormData({}));
   };
 
   const renderLoader = () => {
@@ -84,10 +81,11 @@ export function ButtonComponent(props: IButtonProvidedProps) {
     const {
       org, app, instanceId,
     } = window as Window as IAltinnWindow;
-    FormDataActions.submitFormData(
-      `${window.location.origin}/${org}/${app}/api/${instanceId}`,
-      'Complete',
-    );
+    dispatch(FormDataActions.submitFormData({
+      url: `${window.location.origin}/${org}/${app}/api/${instanceId}`,
+      apiMode: 'Complete',
+      stopWithWarnings: !ignoreWarnings,
+    }));
   };
 
   return (

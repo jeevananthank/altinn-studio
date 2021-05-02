@@ -42,7 +42,7 @@ describe('>>> containers/EditModalContent', () => {
           fetched: true,
           fetching: false,
         },
-        language: {
+        languageState: {
           language: mockLanguage,
         },
         dataModel: {
@@ -55,6 +55,17 @@ describe('>>> containers/EditModalContent', () => {
       thirdPartyComponents: {
         components: null as any,
         error: null as any,
+      },
+      formDesigner: {
+        layout: {
+          selectedLayout: 'FormLayout',
+          layouts: {
+            FormLayout: {
+              components: {},
+              containers: {},
+            },
+          },
+        },
       },
     };
     mockHandleComponentUpdate = () => {
@@ -73,7 +84,7 @@ describe('>>> containers/EditModalContent', () => {
         />
       </Provider>,
     );
-    expect(mountedEditModalContent.find('input').length).toBe(5);
+    expect(mountedEditModalContent.find('input').length).toBe(6);
   });
   it('+++ should return header spesific content when type header', () => {
     mockComponent = {
@@ -94,7 +105,7 @@ describe('>>> containers/EditModalContent', () => {
         />
       </Provider>,
     );
-    expect(mountedEditModalContent.find('input').length).toBe(2);
+    expect(mountedEditModalContent.find('input').length).toBe(3);
   });
   it('+++ should return file uploader spesific content when type file uploader', () => {
     mockComponent = {
@@ -116,7 +127,7 @@ describe('>>> containers/EditModalContent', () => {
         />
       </Provider>,
     );
-    expect(mountedEditModalContent.find('input').length).toBe(9);
+    expect(mountedEditModalContent.find('input').length).toBe(10);
   });
   it('+++ should update min/max number of files on change', () => {
     mockComponent = {
@@ -175,6 +186,6 @@ describe('>>> containers/EditModalContent', () => {
         />
       </Provider>,
     );
-    expect(mountedEditModalContent.find('input').length).toBe(2);
+    expect(mountedEditModalContent.find('input').length).toBe(3);
   });
 });

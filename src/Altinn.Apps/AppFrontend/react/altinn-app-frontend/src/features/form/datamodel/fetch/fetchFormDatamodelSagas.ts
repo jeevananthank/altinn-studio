@@ -1,62 +1,43 @@
 import { SagaIterator } from 'redux-saga';
-import { call, takeLatest, select, all, take } from 'redux-saga/effects';
-import { FETCH_APPLICATION_METADATA_FULFILLED } from 'src/shared/resources/applicationMetadata/actions/types';
+import { call, select, all, take, put } from 'redux-saga/effects';
 import { getJsonSchemaUrl } from 'src/utils/urlHelper';
-import DataModelActions from '../formDatamodelActions';
-import { IFetchDataModel } from './fetchFormDatamodelActions';
-import * as ActionTypes from './fetchFormDatamodelActionTypes';
-import QueueActions from '../../../../shared/resources/queue/queueActions';
+import { IInstance } from 'altinn-shared/types';
+import { dataTaskQueueError } from '../../../../shared/resources/queue/queueSlice';
 import { get } from '../../../../utils/networking';
 import { IRuntimeState } from '../../../../types';
 import { IApplicationMetadata } from '../../../../shared/resources/applicationMetadata';
+import { GET_INSTANCEDATA_FULFILLED } from '../../../../shared/resources/instanceData/get/getInstanceDataActionTypes';
+import { fetchJsonSchema, fetchJsonSchemaFulfilled, fetchJsonSchemaRejected } from '../datamodelSlice';
 
 const AppMetadataSelector: (state: IRuntimeState) => IApplicationMetadata =
   (state: IRuntimeState) => state.applicationMetadata.applicationMetadata;
-
-function* fetchFormDataModelSaga({ url }: IFetchDataModel): SagaIterator {
-  try {
-    const dataModel: any = yield call(get, url);
-    const dataModelFields: any[] = [];
-    // eslint-disable-next-line no-restricted-syntax
-    for (const dataModelField in dataModel.elements) {
-      if (!dataModelField) {
-        // eslint-disable-next-line no-continue
-        continue;
-      }
-      dataModelFields.push(dataModel.elements[dataModelField]);
-    }
-    yield call(DataModelActions.fetchDataModelFulfilled, dataModelFields);
-  } catch (err) {
-    yield call(DataModelActions.fetchDataModelRejected, err);
-    yield call(QueueActions.dataTaskQueueError, err);
-  }
-}
-
-export function* watchFetchFormDataModelSaga(): SagaIterator {
-  yield takeLatest(ActionTypes.FETCH_DATA_MODEL, fetchFormDataModelSaga);
-}
+const InstanceDataSelector = (state: IRuntimeState) => state.instanceData.instance;
 
 function* fetchJsonSchemaSaga(): SagaIterator {
   try {
     const url = getJsonSchemaUrl();
-    const appMetadata = yield select(AppMetadataSelector);
-    const dataType = appMetadata.dataTypes.find((type) => !!type.appLogic);
+    const appMetadata: IApplicationMetadata = yield select(AppMetadataSelector);
+    const instance: IInstance = yield select(InstanceDataSelector);
+    const dataType =
+      appMetadata.dataTypes.find((type) => !!type.appLogic && type.taskId === instance.process.currentTask.elementId);
     const id: string = dataType?.id;
 
     if (id) {
       const schema: any = yield call(get, url + id);
-      yield call(DataModelActions.fetchJsonSchemaFulfilled, schema, id);
+      yield put(fetchJsonSchemaFulfilled({ schema, id }));
     }
-  } catch (err) {
-    yield call(DataModelActions.fetchJsonSchemaRejected, err);
-    yield call(QueueActions.dataTaskQueueError, err);
+  } catch (error) {
+    yield put(fetchJsonSchemaRejected({ error }));
+    yield put(dataTaskQueueError({ error }));
   }
 }
 
 export function* watchFetchJsonSchemaSaga(): SagaIterator {
-  yield all([
-    take(ActionTypes.FETCH_JSON_SCHEMA),
-    take(FETCH_APPLICATION_METADATA_FULFILLED),
-  ]);
-  yield call(fetchJsonSchemaSaga);
+  while (true) {
+    yield all([
+      take(GET_INSTANCEDATA_FULFILLED),
+      take(fetchJsonSchema),
+    ]);
+    yield call(fetchJsonSchemaSaga);
+  }
 }

@@ -1,5 +1,6 @@
-import { getLanguageFromKey, getParsedLanguageFromText } from 'altinn-shared/utils';
-import { IDataModelBindings, IComponentValidations, ITextResource, ITextResourceBindings } from 'src/types';
+import { getLanguageFromKey, getParsedLanguageFromText, getTextResourceByKey } from 'altinn-shared/utils';
+import { ILayoutComponent, ILayoutGroup, ISelectionComponentProps } from 'src/features/form/layout';
+import { IDataModelBindings, IComponentValidations, ITextResource, ITextResourceBindings, IOption, IOptions, IValidations } from 'src/types';
 
 export const isSimpleComponent = (dataModelBindings: any, type: string): boolean => {
   const simpleBinding = dataModelBindings.simpleBinding;
@@ -20,7 +21,23 @@ export const componentHasValidationMessages = (componentValidations) => {
   return hasMessages;
 };
 
+export const getComponentValidations = (
+  validations: IValidations,
+  componentId: string,
+  pageId: string,
+) => {
+  if (validations[pageId]) {
+    return validations[pageId][componentId];
+  }
+
+  return undefined;
+};
+
 export const getFormDataForComponent = (formData: any, dataModelBindings: IDataModelBindings) => {
+  if (!dataModelBindings) {
+    return '';
+  }
+
   if (dataModelBindings.simpleBinding) {
     const formDataVal = formData[dataModelBindings.simpleBinding];
     return formDataVal;
@@ -36,6 +53,87 @@ export const getFormDataForComponent = (formData: any, dataModelBindings: IDataM
     }
   });
   return formDataObj;
+};
+
+export const getDisplayFormDataForComponent = (
+  formData: any,
+  component: ILayoutComponent,
+  textResources: ITextResource[],
+  options: IOptions,
+) => {
+  if (component.dataModelBindings.simpleBinding) {
+    return getDisplayFormData(
+      component.dataModelBindings.simpleBinding,
+      component,
+      formData,
+      options,
+      textResources,
+    );
+  }
+
+  const formDataObj = {};
+  Object.keys(component.dataModelBindings).forEach((key: any) => {
+    const binding = component.dataModelBindings[key];
+    formDataObj[key] = getDisplayFormData(binding, component, formData, options, textResources);
+  });
+  return formDataObj;
+};
+
+export const getDisplayFormData = (
+  dataModelBinding: string,
+  component: ILayoutComponent | ILayoutGroup,
+  formData: any,
+  options: IOptions,
+  textResources: ITextResource[],
+) => {
+  const formDataValue = formData[dataModelBinding] || '';
+  if (formDataValue) {
+    if (component.type === 'Dropdown' || component.type === 'RadioButtons') {
+      const selectionComponent = component as ISelectionComponentProps;
+      let label: string;
+      if (selectionComponent?.options) {
+        label = selectionComponent.options.find((option: IOption) => option.value === formDataValue)?.label;
+      } else if (selectionComponent.optionsId) {
+        label =
+          options[selectionComponent.optionsId]?.find((option: IOption) => option.value === formDataValue)?.label;
+      }
+      return getTextResourceByKey(label, textResources) || '';
+    }
+    if (component.type === 'Checkboxes') {
+      const selectionComponent = component as ISelectionComponentProps;
+      let label: string = '';
+      const data: string = formData[dataModelBinding];
+      const split = data?.split(',');
+      split?.forEach((value: string) => {
+        if (selectionComponent?.options) {
+          label += getTextResourceByKey(selectionComponent.options.find((option: IOption) => option.value === value)?.label, textResources) || '';
+        } else if (selectionComponent.optionsId) {
+          label += getTextResourceByKey(options[selectionComponent.optionsId]?.find((option: IOption) => option.value === value)?.label, textResources) || '';
+        }
+        if (split.indexOf(value) < (split.length - 1)) {
+          label += ', ';
+        }
+      });
+      return label;
+    }
+  }
+  return formDataValue;
+};
+
+export const getFormDataForComponentInRepeatingGroup = (
+  formData: any,
+  component: ILayoutComponent | ILayoutGroup,
+  index: number,
+  groupDataModelBinding: string,
+  textResources: ITextResource[],
+  options: IOptions,
+) => {
+  if (component.type === 'Group' || component.type === 'Header' || component.type === 'Paragraph') {
+    return '';
+  }
+  const dataModelBinding = (component.type === 'AddressComponent') ? component.dataModelBindings?.address : component.dataModelBindings?.simpleBinding;
+  const replaced = dataModelBinding.replace(groupDataModelBinding, `${groupDataModelBinding}[${index}]`);
+  return getDisplayFormData(replaced, component, formData, options, textResources);
 };
 
 export const isComponentValid = (validations: IComponentValidations): boolean => {

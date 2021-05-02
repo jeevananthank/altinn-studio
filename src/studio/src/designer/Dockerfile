@@ -1,5 +1,5 @@
 # studio frontend
-FROM node:14.15.1-alpine3.12 AS generate-studio-frontend
+FROM node:14.16.1-alpine3.13 AS generate-studio-frontend
 
 # Copy and install Lerna
 COPY ./src/designer/frontend/lerna.json .
@@ -16,6 +16,8 @@ COPY ./src/designer/frontend/ux-editor/package.json /ux-editor/
 COPY ./src/designer/frontend/ux-editor/package-lock.json /ux-editor/
 COPY ./src/designer/frontend/dashboard/package.json ./dashboard/
 COPY ./src/designer/frontend/dashboard/package-lock.json ./dashboard/
+COPY ./src/designer/frontend/packages/schema-editor/package.json /packages/schema-editor/
+COPY ./src/designer/frontend/packages/schema-editor/package-lock.json /packages/schema-editor/
 
 RUN npm run install-deps
 
@@ -25,6 +27,7 @@ COPY ./src/designer/frontend/shared/ ./shared/
 COPY ./src/designer/frontend/app-development/ ./app-development/
 COPY ./src/designer/frontend/ux-editor ./ux-editor/
 COPY ./src/designer/frontend/dashboard/ ./dashboard/
+COPY ./src/designer/frontend/packages/schema-editor/ ./packages/schema-editor/
 
 # Build app-development
 RUN npm run build --prefix /app-development
@@ -46,21 +49,24 @@ COPY --from=generate-studio-frontend /dist/app-development/app-development.css .
 COPY --from=generate-studio-frontend /dist/dashboard/dashboard.js .
 COPY --from=generate-studio-frontend /dist/dashboard/dashboard.css .
 
-FROM node:14.15.1-alpine3.12 AS generate-designer-js
+FROM node:14.16.1-alpine3.13 AS generate-designer-js
 COPY src/designer/backend/package.json .
 COPY src/designer/backend/package-lock.json .
 RUN npm ci
 COPY src/designer/backend .
 RUN npm run gulp build
 
-FROM mcr.microsoft.com/dotnet/core/sdk:3.1.404-alpine3.12 AS build
+# We experienced a hard crash in Altinn Studio Designer when updating to Alpine 3.13 ref GitHub issue 5992
+# Verify that this is resolved before updating to a newer version of Alpine.
+FROM mcr.microsoft.com/dotnet/sdk:5.0.202-alpine3.12 AS build
 COPY src/designer/backend ./designer/
 COPY --from=generate-designer-js /wwwroot ./designer/wwwroot
 
 RUN dotnet build designer/Designer.csproj -c Release -o /app_output
 RUN dotnet publish designer/Designer.csproj -c Release -o /app_output
 
-FROM mcr.microsoft.com/dotnet/core/aspnet:3.1.10-alpine3.12 AS final
+# Ref. comment above on upgrading Alpine.
+FROM mcr.microsoft.com/dotnet/aspnet:5.0.5-alpine3.12 AS final
 EXPOSE 80
 WORKDIR /app
 COPY --from=build /app_output .

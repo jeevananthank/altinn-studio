@@ -1,16 +1,17 @@
 /* eslint-disable react/prop-types */
 /* eslint-disable max-len */
 import * as React from 'react';
-import { useSelector, shallowEqual } from 'react-redux';
+import { useSelector, shallowEqual, useDispatch } from 'react-redux';
 import { getTextResourceByKey } from 'altinn-shared/utils';
-import { IDataModelFieldElement, ITextResource, Triggers } from 'src/types';
+import { ILabelSettings, ITextResource, Triggers } from 'src/types';
 import { IComponentValidations } from 'src/types';
+import { Grid } from '@material-ui/core';
 import { ILanguageState } from '../shared/resources/language/languageReducers';
 // eslint-disable-next-line import/no-cycle
 import components from '.';
 import FormDataActions from '../features/form/data/formDataActions';
 import { IFormData } from '../features/form/data/formDataReducer';
-import { IDataModelBindings, ITextResourceBindings } from '../features/form/layout';
+import { IDataModelBindings, IGrid, ITextResourceBindings } from '../features/form/layout';
 import RuleActions from '../features/form/rules/rulesActions';
 import ValidationActions from '../features/form/validation/validationActions';
 import { makeGetFocus, makeGetHidden } from '../selectors/getLayoutData';
@@ -24,7 +25,7 @@ import { getFormDataForComponent,
   getTextResource,
   isComponentValid,
   selectComponentTexts } from '../utils/formComponentUtils';
-import FormLayoutActions from '../features/form/layout/formLayoutActions';
+import { FormLayoutActions } from '../features/form/layout/formLayoutSlice';
 import Description from '../features/form/components/Description';
 
 export interface IGenericComponentProps {
@@ -33,9 +34,12 @@ export interface IGenericComponentProps {
   textResourceBindings: ITextResourceBindings;
   dataModelBindings: IDataModelBindings;
   componentValidations?: IComponentValidations;
-  readOnly: boolean;
-  required: boolean;
+  readOnly?: boolean;
+  required?: boolean;
+  labelSettings?: ILabelSettings;
+  grid?: IGrid;
   triggers?: Triggers[];
+  hidden?: boolean;
 }
 
 export function GenericComponent(props: IGenericComponentProps) {
@@ -43,21 +47,22 @@ export function GenericComponent(props: IGenericComponentProps) {
     id,
     ...passThroughProps
   } = props;
+  const dispatch = useDispatch();
 
   const GetHiddenSelector = makeGetHidden();
   const GetFocusSelector = makeGetFocus();
   const [isSimple, setIsSimple] = React.useState(true);
   const [hasValidationMessages, setHasValidationMessages] = React.useState(false);
 
-  const dataModel: IDataModelFieldElement[] = useSelector((state: IRuntimeState) => state.formDataModel.dataModel);
   const formData: IFormData = useSelector((state: IRuntimeState) => getFormDataForComponent(state.formData.formData, props.dataModelBindings), shallowEqual);
-  const isValid: boolean = useSelector((state: IRuntimeState) => isComponentValid(state.formValidations.validations[props.id]));
+  const currentView: string = useSelector((state: IRuntimeState) => state.formLayout.uiConfig.currentView);
+  const isValid: boolean = useSelector((state: IRuntimeState) => isComponentValid(state.formValidations.validations[currentView]?.[props.id]));
   const language: ILanguageState = useSelector((state: IRuntimeState) => state.language.language);
   const textResources: ITextResource[] = useSelector((state: IRuntimeState) => state.textResources.resources);
   const texts: any = useSelector((state: IRuntimeState) => selectComponentTexts(state.textResources.resources, props.textResourceBindings));
-  const hidden: boolean = useSelector((state: IRuntimeState) => GetHiddenSelector(state, props));
+  const hidden: boolean = useSelector((state: IRuntimeState) => props.hidden || GetHiddenSelector(state, props));
   const shouldFocus: boolean = useSelector((state: IRuntimeState) => GetFocusSelector(state, props));
-  const componentValidations: IComponentValidations = useSelector((state: IRuntimeState) => state.formValidations.validations[props.id], shallowEqual);
+  const componentValidations: IComponentValidations = useSelector((state: IRuntimeState) => state.formValidations.validations[currentView]?.[props.id], shallowEqual);
 
   React.useEffect(() => {
     if (props.dataModelBindings && props.type) {
@@ -69,6 +74,10 @@ export function GenericComponent(props: IGenericComponentProps) {
     setHasValidationMessages(componentHasValidationMessages(componentValidations));
   }, [componentValidations]);
 
+  if (hidden) {
+    return null;
+  }
+
   const handleDataUpdate = (value: any, key: string = 'simpleBinding') => {
     if (!props.dataModelBindings || !props.dataModelBindings[key]) {
       return;
@@ -78,21 +87,32 @@ export function GenericComponent(props: IGenericComponentProps) {
       return;
     }
 
+    if (formData instanceof Object) {
+      if (formData[key] && formData[key] === value) {
+        // data unchanged, do nothing
+        return;
+      }
+    } else if (formData && formData === value) {
+      // data unchanged, do nothing
+      return;
+    }
+
     const dataModelField = props.dataModelBindings[key];
     if (props.triggers && props.triggers.includes(Triggers.Validation)) {
       ValidationActions.setCurrentSingleFieldValidation(dataModelField);
     }
 
-    FormDataActions.updateFormData(dataModelField, value, props.id);
+    dispatch(FormDataActions.updateFormData({
+      field: dataModelField,
+      data: value,
+      componentId: props.id,
+    }));
 
-    const dataModelElement = dataModel.find(
-      (element) => element.dataBindingName === props.dataModelBindings[key],
-    );
-    RuleActions.checkIfRuleShouldRun(props.id, dataModelElement, value);
+    RuleActions.checkIfRuleShouldRun(props.id, props.dataModelBindings[key], value);
   };
 
   const handleFocusUpdate = (componentId: string, step?: number) => {
-    FormLayoutActions.updateFocus(componentId, step || 0);
+    dispatch(FormLayoutActions.updateFocus({ currentComponentId: componentId, step: step || 0 }));
   };
 
   const getValidationsForInternalHandling = () => {
@@ -102,26 +122,21 @@ export function GenericComponent(props: IGenericComponentProps) {
     return null;
   };
 
-  // some compoenets handle their validations internally (i.e merge with internal validaiton state)
+  // some components handle their validations internally (i.e merge with internal validaiton state)
   const internalComponentValidations = getValidationsForInternalHandling();
   if (internalComponentValidations !== null) {
     passThroughProps.componentValidations = internalComponentValidations;
   }
 
-  if (hidden) {
-    return null;
-  }
-
-  const RenderComponent = components.find((componentCandidate: any) => componentCandidate.name === props.type).Tag;
+  const RenderComponent = components.find((componentCandidate) => componentCandidate.name === props.type).Tag;
 
   const RenderLabel = () => {
     return (
-      <Label
-        labelText={texts.title}
-        helpText={texts.help}
+      <RenderLabelScoped
+        props={props}
+        passThroughProps={passThroughProps}
         language={language}
-        {...props}
-        {...passThroughProps}
+        texts={texts}
       />
     );
   };
@@ -132,6 +147,7 @@ export function GenericComponent(props: IGenericComponentProps) {
     }
     return (
       <Description
+        key={`description-${props.id}`}
         description={texts.description}
         id={id}
         {...passThroughProps}
@@ -142,6 +158,7 @@ export function GenericComponent(props: IGenericComponentProps) {
   const RenderLegend = () => {
     return (
       <Legend
+        key={`legend-${props.id}`}
         labelText={texts.title}
         descriptionText={texts.description}
         helpText={texts.help}
@@ -194,31 +211,73 @@ export function GenericComponent(props: IGenericComponentProps) {
     'Button',
     'Checkboxes',
     'RadioButtons',
+    'AttachmentList',
   ];
 
   return (
-    <>
-      {noLabelComponents.includes(props.type) ?
-        null
-        :
-        <RenderLabel />
+    <Grid
+      item={true}
+      container={true}
+      xs={props.grid?.xs || 12}
+      sm={props.grid?.sm || false}
+      md={props.grid?.md || false}
+      lg={props.grid?.lg || false}
+      xl={props.grid?.xl || false}
+      key={`grid-${props.id}`}
+      className='form-group a-form-group'
+      alignItems='baseline'
+    >
+      {!noLabelComponents.includes(props.type) &&
+      <Grid item={true} xs={12}>
+        <RenderLabelScoped
+          props={props}
+          passThroughProps={passThroughProps}
+          language={language}
+          texts={texts}
+        />
+        <RenderDescription key={`description-${props.id}`} />
+      </Grid>
       }
+      <Grid
+        key={`form-content-${props.id}`}
+        item={true}
+        id={`form-content-${props.id}`}
+        xs={props.grid?.innerGrid?.xs || 12}
+        sm={props.grid?.innerGrid?.sm || false}
+        md={props.grid?.innerGrid?.md || false}
+        lg={props.grid?.innerGrid?.lg || false}
+        xl={props.grid?.innerGrid?.xl || false}
+      >
+        <RenderComponent
+          {...componentProps}
+        />
 
-      {noLabelComponents.includes(props.type) ?
-        null
-        :
-        <RenderDescription/>
-      }
-
-      <RenderComponent
-        {...componentProps}
-      />
-
-      {isSimple && hasValidationMessages &&
-            renderValidationMessagesForComponent(componentValidations?.simpleBinding, props.id)
-      }
-    </>
+        {isSimple && hasValidationMessages &&
+          renderValidationMessagesForComponent(componentValidations?.simpleBinding, props.id)
+        }
+      </Grid>
+    </Grid>
   );
 }
+
+interface IRenderLabelProps {
+  texts: any;
+  language: any;
+  props: any;
+  passThroughProps: any;
+}
+
+const RenderLabelScoped = (props: IRenderLabelProps) => {
+  return (
+    <Label
+      key={`label-${props.props.id}`}
+      labelText={props.texts.title}
+      helpText={props.texts.help}
+      language={props.language}
+      {...props.props}
+      {...props.passThroughProps}
+    />
+  );
+};
 
 export default GenericComponent;

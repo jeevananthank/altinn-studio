@@ -1,0 +1,19 @@
+# Dependency directories
+node_modules/
+
+# Example tests
+cypress/integration/examples
+
+# Environment settings
+cypress.env.json
+
+# Screenshots and videos
+screenshots/
+videos/
+
+# Test attachment files
+e2e/fixtures/*.pdf
+e2e/fixtures/*.png
+
+# Reports
+reports/

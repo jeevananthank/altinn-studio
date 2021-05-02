@@ -1,10 +1,12 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Threading.Tasks;
 
 using Altinn.App.Common.Enums;
 using Altinn.App.Common.Models;
 using Altinn.App.Services.Models.Validation;
+using Altinn.Common.EFormidlingClient.Models.SBD;
 using Altinn.Platform.Storage.Interface.Models;
 
 using Microsoft.AspNetCore.Mvc.ModelBinding;
@@ -111,15 +113,61 @@ namespace Altinn.App.Services.Interface
         /// </summary>
         /// <param name="id">The option id</param>
         /// <param name="options">Possible option found by the platform itself</param>
-        /// <returns></returns>
+        /// <returns>The app options</returns>
         Task<AppOptions> GetOptions(string id, AppOptions options);
+
+        /// <summary>
+        /// Gets the current page order of the app
+        /// </summary>
+        /// <param name="org">The app owner.</param>
+        /// <param name="app">The app.</param>
+        /// <param name="instanceOwnerId">The instance owner partyId</param>
+        /// <param name="instanceGuid">The instanceGuid</param>
+        /// <param name="layoutSetId">The layout set id</param>
+        /// <param name="currentPage">The current page of the instance.</param>
+        /// <param name="dataTypeId">The data type id of the current layout.</param>
+        /// <param name="formData">The form data.</param>
+        /// <returns> The pages in sorted order.</returns>
+        virtual async Task<List<string>> GetPageOrder(string org, string app, int instanceOwnerId, Guid instanceGuid, string layoutSetId, string currentPage, string dataTypeId, object formData)
+        {
+            return await Task.FromResult(new List<string>());
+        }
 
         /// <summary>
         /// Event where app developers can add logic. 
         /// </summary>
         /// <param name="taskId">The taskId</param>
         /// <param name="instance">The instance</param>
-        /// <returns></returns>
         Task RunProcessTaskEnd(string taskId, Instance instance);
+
+        /// <summary>
+        /// Format layoutsettings
+        /// </summary>
+        Task<LayoutSettings> FormatPdf(LayoutSettings layoutSettings, object data);
+
+        /// <summary>
+        /// Gets a list of eFormidling shipment receivers
+        /// </summary>
+        /// <remarks>
+        /// Note that the identifier value property on the receiver objects should be prefixed with `0192:` for Norwegian organisations.
+        /// </remarks>
+        virtual async Task<List<Receiver>> GetEFormidlingReceivers(Instance instance)
+        {
+            await Task.CompletedTask;
+            return null;
+        }
+
+        /// <summary>
+        /// Generates the metadata document for the eFormidling shipment. e.g. arkivmelding.
+        /// </summary>
+        /// <remarks>
+        /// The metadata file should be parsed to XML before assigning it to the stream.
+        /// </remarks>
+        /// <returns>A touple containing the metadata file name and the metadata in a stream.</returns>
+        virtual async Task<(string, Stream)> GenerateEFormidlingMetadata(Instance instance)
+        {
+            await Task.CompletedTask;
+            return (null, null);
+        }
     }
 }

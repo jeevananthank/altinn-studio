@@ -1,5 +1,5 @@
 using System.Collections.Generic;
-
+using Altinn.App.Common.Models;
 using Altinn.Platform.Profile.Models;
 using Altinn.Platform.Register.Models;
 using Altinn.Platform.Storage.Interface.Models;
@@ -29,13 +29,19 @@ namespace Altinn.App.Services.Models
         /// Gets or sets the layout settings
         /// </summary>
         [JsonProperty(PropertyName = "layoutSettings")]
-        public object LayoutSettings { get; set; } 
+        public LayoutSettings LayoutSettings { get; set; } 
 
         /// <summary>
         /// Gets or sets the text resources
         /// </summary>
         [JsonProperty(PropertyName = "textResources")]
         public object TextResources { get; set; }
+
+        /// <summary>
+        /// Gets or sets the dictionary of options.
+        /// </summary>
+        [JsonProperty(PropertyName = "optionsDictionary")]
+        public Dictionary<string, Dictionary<string, string>> OptionsDictionary { get; set; }
 
         /// <summary>
         /// Gets or sets the data, note that this should be base64 encoded
@@ -60,5 +66,11 @@ namespace Altinn.App.Services.Models
         /// </summary>
         [JsonProperty(PropertyName = "userProfile")]
         public UserProfile UserProfile { get; set; }
+
+        /// <summary>
+        /// Gets or sets the preferred language
+        /// </summary>
+        [JsonProperty(PropertyName = "language")]
+        public string Language { get; set; }
     }
 }

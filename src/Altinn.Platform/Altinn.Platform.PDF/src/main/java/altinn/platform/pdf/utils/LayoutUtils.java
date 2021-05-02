@@ -7,6 +7,7 @@ import org.w3c.dom.Document;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.ArrayList;
 
 public class LayoutUtils {
 
@@ -42,13 +43,23 @@ public class LayoutUtils {
       height += textMargin;
     }
 
-    if (element.getType().equalsIgnoreCase("paragrah") || element.getType().equalsIgnoreCase("header")) {
+    if (element.getType().equalsIgnoreCase("paragraph") || element.getType().equalsIgnoreCase("header")) {
       // have no content, return height
       return height;
     }
 
     if (element.getType().equalsIgnoreCase("fileupload")) {
       List<String> lines = InstanceUtils.getAttachmentsByComponentId(element.getId(), instance);
+      for (String line: lines) {
+        height += TextUtils.getHeightNeededForText(line, font, fontSize, width);
+        height += (leading - fontSize);
+      }
+    } else if (element.getType().equalsIgnoreCase("attachmentlist")) {
+      List<String> lines = new ArrayList<>();
+      for (String id: element.getDataTypeIds()) {
+        lines.addAll(InstanceUtils.getAttachmentsByComponentId(id, instance));
+      }
+
       for (String line: lines) {
         height += TextUtils.getHeightNeededForText(line, font, fontSize, width);
         height += (leading - fontSize);
@@ -66,11 +77,40 @@ public class LayoutUtils {
    * Check if page should be included in the pdf
    * @param layoutKey key the page
    * @param layoutSettings layoutSettings for the document
+   * @param formLayoutElements list of formLayoutElements
    * @return boolean
    */
-  public static boolean includePageInPdf(String layoutKey, LayoutSettings layoutSettings) {
-    return layoutSettings == null || layoutSettings.getPages() == null ||
+  public static boolean includePageInPdf(String layoutKey, LayoutSettings layoutSettings, List<FormLayoutElement> formLayoutElements) {
+    return (layoutSettings == null || layoutSettings.getPages() == null ||
       layoutSettings.getPages().getExcludeFromPdf() == null ||
-      !layoutSettings.getPages().getExcludeFromPdf().contains(layoutKey);
+      !layoutSettings.getPages().getExcludeFromPdf().contains(layoutKey)) && checkVisibleFieldInPage(layoutSettings, formLayoutElements) ;
+  }
+
+  /**
+   * Check if component should be included in the pdf
+   * @param componentId id for the component
+   * @param layoutSettings layoutSettings for the document
+   * @return boolean
+   */
+  public static boolean includeComponentInPdf(String componentId, LayoutSettings layoutSettings) {
+    return layoutSettings == null || layoutSettings.getComponents() == null ||
+      layoutSettings.getComponents().getExcludeFromPdf() == null ||
+      !layoutSettings.getComponents().getExcludeFromPdf().contains(componentId);
+  }
+
+  /**
+   * Check if page has any visible components
+   * @param layoutSettings layoutSettings for the document
+   * @param formLayoutElements list of formLayoutElements
+   * @return boolean
+   */
+  private static boolean checkVisibleFieldInPage(LayoutSettings layoutSettings, List<FormLayoutElement> formLayoutElements) {
+    for(FormLayoutElement element : formLayoutElements) {
+      String elementId = element.getId();
+      if(includeComponentInPdf(elementId, layoutSettings)) {
+        return true;
+      }
+    }
+    return false;
   }
 }

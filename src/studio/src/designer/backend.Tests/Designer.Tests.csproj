@@ -1,16 +1,20 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>netcoreapp3.1</TargetFramework>
-
+    <TargetFramework>net5.0</TargetFramework>
     <IsPackable>false</IsPackable>
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="16.8.0" />
+    <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" Version="5.0.5" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="16.9.4" />
+    <PackageReference Include="Moq" Version="4.16.1" />
     <PackageReference Include="xunit" Version="2.4.1" />
     <PackageReference Include="xunit.runner.visualstudio" Version="2.4.3" />
-    <PackageReference Include="coverlet.collector" Version="1.3.0" />
+    <PackageReference Include="coverlet.collector" Version="3.0.3">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
   </ItemGroup>
 
   <ItemGroup>
@@ -43,13 +47,18 @@
     <EmbeddedResource Include="_TestData\**\*.*" />
   </ItemGroup>
   <ItemGroup>
-    <None Remove="_TestData\Repositories\testUser\ttd\ttd-datamodels\3478\32578\32578.xsd" />
-    <None Remove="_TestData\Repositories\testUser\ttd\ttd-datamodels\4106\35721\35721.xsd" />
-    <None Remove="_TestData\Repositories\testUser\ttd\ttd-datamodels\5245\41111\41111.schema.json" />
-    <None Remove="_TestData\Repositories\testUser\ttd\ttd-datamodels\5245\41111\41111.xsd" />
-    <None Remove="_TestData\Repositories\testUser\ttd\ttd-datamodels\ra\0678\0678.xsd" />
+    <None Remove="_TestData\Repositories\testUser\ttd\ttd-datamodels\App\models\32578.schema.json" />
+    <None Remove="_TestData\Repositories\testUser\ttd\ttd-datamodels\App\models\32578.xsd" />
+    <None Remove="_TestData\Repositories\testUser\ttd\ttd-datamodels\App\models\35721.xsd" />
+    <None Remove="_TestData\Repositories\testUser\ttd\ttd-datamodels\App\models\41111.schema.json" />
+    <None Remove="_TestData\Repositories\testUser\ttd\ttd-datamodels\App\models\41111.xsd" />
   </ItemGroup>
   <ItemGroup>
     <Folder Include="_TestData\Repositories\testUser\ttd\apps-test\" />
+  </ItemGroup>
+  <ItemGroup>
+    <EmbeddedResource Update="_TestData\Repositories\testUser\ttd\ttd-datamodels\App\models\41111.schema.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </EmbeddedResource>
   </ItemGroup>
 </Project>

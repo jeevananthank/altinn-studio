@@ -14,6 +14,7 @@ using Altinn.Platform.Authorization.Repositories;
 using Altinn.Platform.Authorization.Repositories.Interface;
 using Altinn.Platform.Authorization.ModelBinding;
 using Altinn.Platform.Events.Repository;
+using Altinn.Platform.Storage.Clients;
 using Altinn.Platform.Storage.Repository;
 using Altinn.Platform.Storage.Helpers;
 
@@ -39,6 +40,8 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.IdentityModel.Tokens;
 using LocalTest.Services.Localtest.Interface;
 using LocalTest.Services.Localtest.Implementation;
+using System.Text.Json.Serialization;
+using LocalTest.Services.Authorization.Interface;
 
 namespace LocalTest
 {
@@ -54,11 +57,16 @@ namespace LocalTest
         // This method gets called by the runtime. Use this method to add services to the container.
         public void ConfigureServices(IServiceCollection services)
         {
+            services.AddControllers().AddJsonOptions(opt =>
+            {
+                opt.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
+            });
+
             services.Configure<Altinn.Common.PEP.Configuration.PepSettings>(Configuration.GetSection("PepSettings"));
             services.Configure<Altinn.Common.PEP.Configuration.PlatformSettings>(Configuration.GetSection("PlatformSettings"));
 
             services.Configure<LocalPlatformSettings>(Configuration.GetSection("LocalPlatformSettings"));
-            services.AddControllersWithViews();
+            services.AddControllersWithViews(); 
             services.AddSingleton(Configuration);
             services.Configure<GeneralSettings>(Configuration.GetSection("GeneralSettings"));
             services.Configure<Altinn.Platform.Authentication.Configuration.GeneralSettings>(Configuration.GetSection("AuthnGeneralSettings"));
@@ -87,6 +95,7 @@ namespace LocalTest
             services.AddSingleton<IPolicyRetrievalPoint, PolicyRetrievalPoint>();
             services.AddSingleton<IPolicyInformationRepository, PolicyInformationRepository>();
             services.AddSingleton<IRoles, RolesWrapper>();
+            services.AddSingleton<IPartiesWithInstancesClient, PartiesWithInstancesClient>();
 
             X509Certificate2 cert = new X509Certificate2("JWTValidationCert.cer");
             SecurityKey key = new X509SecurityKey(cert);

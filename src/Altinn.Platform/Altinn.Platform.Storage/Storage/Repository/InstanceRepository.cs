@@ -13,6 +13,7 @@ using Microsoft.Azure.Documents.Linq;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Primitives;
+
 using Newtonsoft.Json;
 
 namespace Altinn.Platform.Storage.Repository
@@ -20,18 +21,13 @@ namespace Altinn.Platform.Storage.Repository
     /// <summary>
     /// Repository operations for application instances.
     /// </summary>
-    public class InstanceRepository : IInstanceRepository
+    internal sealed class InstanceRepository : BaseRepository, IInstanceRepository
     {
         private const string CollectionId = "instances";
         private const string PartitionKey = "/instanceOwner/partyId";
 
-        private readonly Uri _collectionUri;
-        private readonly string _databaseId;
         private readonly ILogger<InstanceRepository> _logger;
         private readonly IDataRepository _dataRepository;
-
-        private readonly DocumentClient _client;
-        private readonly AzureCosmosSettings _settings;
 
         /// <summary>
         /// Initializes a new instance of the <see cref="InstanceRepository"/> class
@@ -43,26 +39,10 @@ namespace Altinn.Platform.Storage.Repository
             IOptions<AzureCosmosSettings> cosmosSettings,
             ILogger<InstanceRepository> logger,
             IDataRepository dataRepository)
+            : base(CollectionId, PartitionKey, cosmosSettings)
         {
             _logger = logger;
             _dataRepository = dataRepository;
-
-            _settings = cosmosSettings.Value;
-
-            CosmosDatabaseHandler database = new CosmosDatabaseHandler(cosmosSettings.Value);
-
-            _client = database.CreateDatabaseAndCollection(CollectionId);
-            _collectionUri = database.CollectionUri;
-            Uri databaseUri = database.DatabaseUri;
-            _databaseId = database.DatabaseName;
-
-            DocumentCollection documentCollection = database.CreateDocumentCollection(CollectionId, PartitionKey);
-
-            _client.CreateDocumentCollectionIfNotExistsAsync(
-                databaseUri,
-                documentCollection).GetAwaiter().GetResult();
-
-            _client.OpenAsync();
         }
 
         /// <inheritdoc/>
@@ -70,7 +50,7 @@ namespace Altinn.Platform.Storage.Repository
         {
             PreProcess(instance);
 
-            ResourceResponse<Document> createDocumentResponse = await _client.CreateDocumentAsync(_collectionUri, instance);
+            ResourceResponse<Document> createDocumentResponse = await Client.CreateDocumentAsync(CollectionUri, instance);
             Document document = createDocumentResponse.Resource;
             Instance instanceStored = JsonConvert.DeserializeObject<Instance>(document.ToString());
 
@@ -84,9 +64,9 @@ namespace Altinn.Platform.Storage.Repository
         {
             PreProcess(item);
 
-            Uri uri = UriFactory.CreateDocumentUri(_databaseId, CollectionId, item.Id);
+            Uri uri = UriFactory.CreateDocumentUri(DatabaseId, CollectionId, item.Id);
 
-            await _client.DeleteDocumentAsync(
+            await Client.DeleteDocumentAsync(
                 uri.ToString(),
                 new RequestOptions { PartitionKey = new PartitionKey(item.InstanceOwner.PartyId) });
 
@@ -111,18 +91,20 @@ namespace Altinn.Platform.Storage.Repository
                 {
                     EnableCrossPartitionQuery = true,
                     MaxItemCount = size - queryResponse.Count,
+                    ResponseContinuationTokenLimitInKb = 7
                 };
 
-                if (continuationToken != null)
+                if (!string.IsNullOrEmpty(continuationToken))
                 {
                     feedOptions.RequestContinuation = continuationToken;
                 }
 
-                IQueryable<Instance> queryBuilder = _client.CreateDocumentQuery<Instance>(_collectionUri, feedOptions);
+                IQueryable<Instance> queryBuilder = Client.CreateDocumentQuery<Instance>(CollectionUri, feedOptions);
 
                 try
                 {
-                    queryBuilder = BuildQueryFromParameters(queryParams, queryBuilder);
+                    queryBuilder = BuildQueryFromParameters(queryParams, queryBuilder)
+                    .Where(i => !i.Status.IsHardDeleted);
                 }
                 catch (Exception e)
                 {
@@ -135,7 +117,7 @@ namespace Altinn.Platform.Storage.Repository
                     IDocumentQuery<Instance> documentQuery = queryBuilder.AsDocumentQuery();
 
                     FeedResponse<Instance> feedResponse = await documentQuery.ExecuteNextAsync<Instance>();
-                    if (feedResponse.Count == 0)
+                    if (feedResponse.Count == 0 && !documentQuery.HasMoreResults)
                     {
                         queryResponse.ContinuationToken = string.Empty;
                         break;
@@ -173,30 +155,29 @@ namespace Altinn.Platform.Storage.Repository
                 string queryParameter = param.Key;
                 StringValues queryValues = param.Value;
 
+                if (queryParameter.Equals("appId"))
+                {
+                    queryBuilder = queryBuilder.Where(i => queryValues.Contains(i.AppId));
+                    continue;
+                }
+
+                if (queryParameter.Equals("instanceOwner.partyId"))
+                {
+                    queryBuilder = queryBuilder.Where(i => queryValues.Contains(i.InstanceOwner.PartyId));
+                    continue;
+                }
+
                 foreach (string queryValue in queryValues)
                 {
                     switch (queryParameter)
                     {
                         case "size":
-                            // handled outside this, it is a valid parameter.
-                            break;
-
                         case "continuationToken":
                             // handled outside this method, it is a valid parameter.
                             break;
-
-                        case "appId":
-                            queryBuilder = queryBuilder.Where(i => i.AppId == queryValue);
-                            break;
-
                         case "org":
                             queryBuilder = queryBuilder.Where(i => i.Org == queryValue);
                             break;
-
-                        case "instanceOwner.partyId":
-                            queryBuilder = queryBuilder.Where(i => i.InstanceOwner.PartyId == queryValue);
-                            break;
-
                         case "lastChanged":
                             queryBuilder = QueryBuilderForLastChangedDateTime(queryBuilder, queryValue);
                             break;
@@ -236,6 +217,40 @@ namespace Altinn.Platform.Storage.Repository
 
                         case "excludeConfirmedBy":
                             queryBuilder = QueryBuilderExcludeConfirmedBy(queryBuilder, queryValue);
+                            break;
+                        case "language":
+                            break;
+                        case "status.isArchived":
+                            bool isArchived = bool.Parse(queryValue);
+                            queryBuilder = queryBuilder.Where(i => i.Status.IsArchived == isArchived);
+
+                            break;
+                        case "status.isSoftDeleted":
+                            bool isSoftDeleted = bool.Parse(queryValue);
+                            queryBuilder = queryBuilder.Where(i => i.Status.IsSoftDeleted == isSoftDeleted);
+
+                            break;
+                        case "status.isArchivedOrSoftDeleted":
+                            if (bool.Parse(queryValue))
+                            {
+                                queryBuilder = queryBuilder.Where(i => i.Status.IsArchived || i.Status.IsSoftDeleted);
+                            }
+
+                            break;
+                        case "status.isActiveorSoftDeleted":
+                            if (bool.Parse(queryValue))
+                            {
+                                queryBuilder = queryBuilder.Where(i => !i.Status.IsArchived || i.Status.IsSoftDeleted);
+                            }
+
+                            break;
+                        case "sortBy":
+                            queryBuilder = QueryBuilderForSortBy(queryBuilder, queryValue);
+
+                            break;
+                        case "archiveReference":
+                            queryBuilder = queryBuilder.Where(i => i.Id.EndsWith(queryValue.ToLower()));
+
                             break;
                         default:
                             throw new ArgumentException($"Unknown query parameter: {queryParameter}");
@@ -371,6 +386,37 @@ namespace Altinn.Platform.Storage.Repository
                 !i.CompleteConfirmations.Any(cc => cc.StakeholderId == queryValue));
         }
 
+        private IQueryable<Instance> QueryBuilderForSortBy(IQueryable<Instance> queryBuilder, string queryValue)
+        {
+            string[] value = queryValue.Split(':');
+            string direction = value[0].ToLower();
+            string property = value[1];
+
+            if (!direction.Equals("desc") && !direction.Equals("asc"))
+            {
+                throw new ArgumentException($"Invalid direction for sorting: {direction}");
+            }
+
+            switch (property)
+            {
+                case "lastChanged":
+                    if (direction.Equals("desc"))
+                    {
+                        queryBuilder = queryBuilder.OrderByDescending(i => i.LastChanged);
+                    }
+                    else
+                    {
+                        queryBuilder = queryBuilder.OrderBy(i => i.LastChanged);
+                    }
+
+                    break;
+                default:
+                    throw new ArgumentException($"Cannot sort on property: {property}");
+            }
+
+            return queryBuilder;
+        }
+
         // Limitations in queryBuilder.Where interface forces me to duplicate the datetime methods
         private IQueryable<Instance> QueryBuilderForCreated(IQueryable<Instance> queryBuilder, string queryValue)
         {
@@ -458,9 +504,9 @@ namespace Altinn.Platform.Storage.Repository
         public async Task<Instance> GetOne(string instanceId, int instanceOwnerPartyId)
         {
             string cosmosId = InstanceIdToCosmosId(instanceId);
-            Uri uri = UriFactory.CreateDocumentUri(_databaseId, CollectionId, cosmosId);
+            Uri uri = UriFactory.CreateDocumentUri(DatabaseId, CollectionId, cosmosId);
 
-            Instance instance = await _client
+            Instance instance = await Client
                 .ReadDocumentAsync<Instance>(
                     uri,
                     new RequestOptions { PartitionKey = new PartitionKey(instanceOwnerPartyId.ToString()) });
@@ -471,77 +517,12 @@ namespace Altinn.Platform.Storage.Repository
         }
 
         /// <inheritdoc/>
-        public async Task<List<Instance>> GetInstancesInStateOfInstanceOwner(int instanceOwnerPartyId, string instanceState)
-        {
-            List<Instance> instances = new List<Instance>();
-            string instanceOwnerPartyIdString = instanceOwnerPartyId.ToString();
-
-            FeedOptions feedOptions = new FeedOptions
-            {
-                PartitionKey = new PartitionKey(instanceOwnerPartyIdString)
-            };
-
-            if (_settings.CollectMetrics)
-            {
-                feedOptions.PopulateQueryMetrics = true;
-            }
-
-            IQueryable<Instance> filter;
-
-            if (instanceState.Equals("active"))
-            {
-                filter = _client.CreateDocumentQuery<Instance>(_collectionUri, feedOptions)
-                        .Where(i => i.InstanceOwner.PartyId == instanceOwnerPartyIdString)
-                        .Where(i => (!i.VisibleAfter.HasValue || i.VisibleAfter <= DateTime.UtcNow))
-                        .Where(i => !i.Status.SoftDeleted.HasValue)
-                        .Where(i => !i.Status.HardDeleted.HasValue)
-                        .Where(i => !i.Status.Archived.HasValue);
-            }
-            else if (instanceState.Equals("deleted"))
-            {
-                filter = _client.CreateDocumentQuery<Instance>(_collectionUri, feedOptions)
-                        .Where(i => i.InstanceOwner.PartyId == instanceOwnerPartyIdString)
-                        .Where(i => i.Status.SoftDeleted.HasValue)
-                        .Where(i => !i.Status.HardDeleted.HasValue);
-            }
-            else if (instanceState.Equals("archived"))
-            {
-                filter = _client.CreateDocumentQuery<Instance>(_collectionUri, feedOptions)
-                       .Where(i => i.InstanceOwner.PartyId == instanceOwnerPartyIdString)
-                       .Where(i => i.Status.Archived.HasValue)
-                       .Where(i => !i.Status.SoftDeleted.HasValue)
-                       .Where(i => !i.Status.HardDeleted.HasValue)
-                       .OrderByDescending(i => i.Status.Archived);
-            }
-            else
-            {
-                // empty list
-                return instances;
-            }
-
-            IDocumentQuery<Instance> query = filter.AsDocumentQuery();
-
-            FeedResponse<Instance> feedResponse = await query.ExecuteNextAsync<Instance>();
-
-            if (_settings.CollectMetrics)
-            {
-                _logger.LogError($"Metrics retrieving {instanceState} instances for {instanceOwnerPartyId}: {JsonConvert.SerializeObject(feedResponse.QueryMetrics)}");
-            }
-
-            instances = feedResponse.ToList();
-
-            await PostProcess(instances);
-
-            return instances;
-        }
-
-        /// <inheritdoc/>
         public async Task<Instance> Update(Instance item)
         {
             PreProcess(item);
 
-            ResourceResponse<Document> createDocumentResponse = await _client
-                .ReplaceDocumentAsync(UriFactory.CreateDocumentUri(_databaseId, CollectionId, item.Id), item);
+            ResourceResponse<Document> createDocumentResponse = await Client
+                .ReplaceDocumentAsync(UriFactory.CreateDocumentUri(DatabaseId, CollectionId, item.Id), item);
             Document document = createDocumentResponse.Resource;
             Instance instance = JsonConvert.DeserializeObject<Instance>(document.ToString());
 
@@ -552,11 +533,13 @@ namespace Altinn.Platform.Storage.Repository
 
         /// <summary>
         /// Converts the instanceId (id) of the instance from {instanceOwnerPartyId}/{instanceGuid} to {instanceGuid} to use as id in cosmos.
+        /// Ensures dataElements are not included in the document. 
         /// </summary>
         /// <param name="instance">the instance to preprocess</param>
         private void PreProcess(Instance instance)
         {
             instance.Id = InstanceIdToCosmosId(instance.Id);
+            instance.Data = new List<DataElement>();
         }
 
         /// <summary>
@@ -575,6 +558,10 @@ namespace Altinn.Platform.Storage.Repository
 
             instance.Id = instanceId;
             instance.Data = await _dataRepository.ReadAll(instanceGuid);
+            if (instance.Data != null && instance.Data.Any())
+            {
+                SetReadStatus(instance);
+            }
 
             (string lastChangedBy, DateTime? lastChanged) = InstanceHelper.FindLastChanged(instance);
             instance.LastChanged = lastChanged;
@@ -610,6 +597,18 @@ namespace Altinn.Platform.Storage.Repository
             }
 
             return cosmosId;
+        }
+
+        private void SetReadStatus(Instance instance)
+        {
+            if (instance.Status.ReadStatus == ReadStatus.Read && instance.Data.Any(d => !d.IsRead))
+            {
+                instance.Status.ReadStatus = ReadStatus.UpdatedSinceLastReview;
+            }
+            else if (instance.Status.ReadStatus == ReadStatus.Read && !instance.Data.Any(d => d.IsRead))
+            {
+                instance.Status.ReadStatus = ReadStatus.Unread;
+            }
         }
     }
 }

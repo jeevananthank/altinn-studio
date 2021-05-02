@@ -65,6 +65,10 @@ export function getValidationUrl(instanceId: string) {
   return `${appPath}/instances/${instanceId}/validate`;
 }
 
+export function getDataValidationUrl(instanceId: string, dataGuid: string) {
+  return `${appPath}/instances/${instanceId}/data/${dataGuid}/validate`;
+}
+
 export function getCompleteProcessUrl() {
   return `${appPath}/instances/${altinnWindow.instanceId}/process/next`;
 }
@@ -118,9 +122,42 @@ export const getOptionsUrl = (optionsId: string) => {
 };
 
 export function getJsonSchemaUrl() {
-  return `${window.location.origin}/${org}/${app}/api/jsonschema/`;
+  return `${appPath}/api/jsonschema/`;
 }
 
-export function getLayoutSettingsUrl() {
-  return `${window.location.origin}/${org}/${app}/api/layoutsettings`;
+export function getLayoutSettingsUrl(layoutset: string) {
+  if (layoutset === null) {
+    return `${appPath}/api/layoutsettings`;
+  }
+  return `${appPath}/api/layoutsettings/${layoutset}`;
+}
+
+export function getLayoutSetsUrl() {
+  return `${appPath}/api/layoutsets`;
+}
+
+export function getFetchFormDataUrl(instanceId: string, dataElementId: string) {
+  return `${appPath}/instances/${instanceId}/data/${dataElementId}`;
+}
+
+export function getFetchFormDynamicsUrl() {
+  return `${appPath}/api/resource/RuleConfiguration.json`;
+}
+
+export function getLayoutsUrl(layoutset: string) {
+  if (layoutset === null) {
+    return `${appPath}/api/resource/FormLayout.json`;
+  }
+  return `${appPath}/api/layouts/${layoutset}`;
+}
+
+export function getRulehandlerUrl(layoutset: string) {
+  if (layoutset === null) {
+    return `${appPath}/api/resource/RuleHandler.js`;
+  }
+  return `${appPath}/api/rulehandler/${layoutset}`;
+}
+
+export function getCalculatePageOrderUrl() {
+  return `${appPath}/instances/${altinnWindow.instanceId}/pages/order`;
 }

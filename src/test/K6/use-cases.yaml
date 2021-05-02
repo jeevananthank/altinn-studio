@@ -20,52 +20,64 @@ steps:
   displayName: 'Delete test results'
   inputs:
     SourceFolder: '$(Build.SourcesDirectory)'
-    Contents: '*.xml'
+    Contents: |
+      *.xml
+      result.txt
   condition: succeededOrFailed()
 
+- script: |
+   k6 run --quiet --logformat raw --console-output=$(Build.SourcesDirectory)/result.txt $(Build.SourcesDirectory)/src/test/K6/src/availability.js -e env=$(environment)
+   
+   type result.txt
+   
+   set /p result= < result.txt
+   
+   echo ##vso[task.setvariable variable=availability;]%result%
+  
+  workingDirectory: '$(Build.SourcesDirectory)'   
+  displayName: 'Check availability'
+
 - script: |   
-   k6 run  --quiet $(Build.SourcesDirectory)/src/test/K6/src/tests/platform/authentication/authentication.js -e env=$(environment) -e username=$(level2user) -e userpwd=$(userpwd) -e subskey=$(subsKey)
+   k6 run  --quiet $(Build.SourcesDirectory)/src/test/K6/src/tests/platform/authentication/authentication.js -e env=$(environment) -e username=$(level2user) -e userpwd=$(userpwd) -e appsaccesskey=$(appsAccessSubsKey)
    
   workingDirectory: '$(Build.SourcesDirectory)'
   displayName: 'Authentication'
   continueOnError: false
-  condition: succeededOrFailed()
+  condition: and(succeeded(), eq(variables['availability'], 'up'))
 
 - script: |   
-   k6 run  --quiet $(Build.SourcesDirectory)/src/test/K6/src/tests/app/portalsimulation.js -e env=$(environment) -e org=$(org) -e level2app=$(level2app) -e username=$(level2user) -e userpwd=$(userpwd) -e subskey=$(subsKey) -e sblaccesskey=$(sblAccessSubsKey) | k6-to-junit portal.xml
+   k6 run  --quiet $(Build.SourcesDirectory)/src/test/K6/src/tests/app/portalsimulation.js -e env=$(environment) -e org=$(org) -e level2app=$(level2app) -e username=$(level2user) -e userpwd=$(userpwd) -e appsaccesskey=$(appsAccessSubsKey) -e sblaccesskey=$(sblAccessSubsKey) | k6-to-junit portal.xml
 
-   k6 run  --quiet $(Build.SourcesDirectory)/src/test/K6/src/tests/app/multipartdata.js -e env=$(environment) -e org=$(org) -e level2app=$(level2app) -e username=$(level2user) -e userpwd=$(userpwd) -e subskey=$(subsKey) -e sblaccesskey=$(sblAccessSubsKey) | k6-to-junit multipart.xml
-
-   k6 run  --quiet $(Build.SourcesDirectory)/src/test/K6/src/tests/app/end2end.js -e env=$(environment) -e org=$(org) -e level2app=$(level2app) -e username=$(level2user) -e userpwd=$(userpwd) -e subskey=$(subsKey) -e sblaccesskey=$(sblAccessSubsKey) | k6-to-junit e2e.xml
+   k6 run  --quiet $(Build.SourcesDirectory)/src/test/K6/src/tests/app/multipartdata.js -e env=$(environment) -e org=$(org) -e level2app=$(level2app) -e username=$(level2user) -e userpwd=$(userpwd) -e appsaccesskey=$(appsAccessSubsKey) -e sblaccesskey=$(sblAccessSubsKey) | k6-to-junit multipart.xml
    
   workingDirectory: '$(Build.SourcesDirectory)'
   displayName: 'App'
   continueOnError: true
-  condition: succeeded()
+  condition: and(succeeded(), eq(variables['availability'], 'up'))
 
 - script: |   
-   k6 run  --quiet $(Build.SourcesDirectory)/src/test/K6/src/tests/platform/events/events.js -e env=$(environment) -e org=$(org) -e level2app=$(level2app) -e username=$(level2user) -e userpwd=$(userpwd)  -e subskey=$(subsKey) | k6-to-junit events.xml
+   k6 run  --quiet $(Build.SourcesDirectory)/src/test/K6/src/tests/platform/events/events.js -e env=$(environment) -e org=$(org) -e level2app=$(level2app) -e username=$(level2user) -e userpwd=$(userpwd)  -e appsaccesskey=$(appsAccessSubsKey) | k6-to-junit events.xml
+   
+   k6 run  --quiet $(Build.SourcesDirectory)/src/test/K6/src/tests/platform/register/register.js -e env=$(environment) -e org=$(org) -e level2app=$(level2app) -e username=$(level2user) -e userpwd=$(userpwd) -e appsaccesskey=$(appsAccessSubsKey) | k6-to-junit register.xml
 
-   k6 run  --quiet $(Build.SourcesDirectory)/src/test/K6/src/tests/platform/register/register.js -e env=$(environment) -e org=$(org) -e level2app=$(level2app) -e username=$(level2user) -e userpwd=$(userpwd) -e subskey=$(subsKey) | k6-to-junit register.xml
+   k6 run  --quiet $(Build.SourcesDirectory)/src/test/K6/src/tests/platform/receipt/receipt.js -e env=$(environment) -e org=$(org) -e level2app=$(level2app) -e username=$(level2user) -e userpwd=$(userpwd) -e appsaccesskey=$(appsAccessSubsKey) | k6-to-junit receipt.xml
 
-   k6 run  --quiet $(Build.SourcesDirectory)/src/test/K6/src/tests/platform/receipt/receipt.js -e env=$(environment) -e org=$(org) -e level2app=$(level2app) -e username=$(level2user) -e userpwd=$(userpwd) -e subskey=$(subsKey) | k6-to-junit receipt.xml
+   k6 run  --quiet $(Build.SourcesDirectory)/src/test/K6/src/tests/platform/storage/messageboxinstances.js -e env=$(environment) -e org=$(org) -e level2app=$(level2app) -e username=$(level2user) -e userpwd=$(userpwd) -e appsaccesskey=$(appsAccessSubsKey) -e sblaccesskey=$(sblAccessSubsKey) | k6-to-junit sbl.xml
 
-   k6 run  --quiet $(Build.SourcesDirectory)/src/test/K6/src/tests/platform/storage/messageboxinstances.js -e env=$(environment) -e org=$(org) -e level2app=$(level2app) -e username=$(level2user) -e userpwd=$(userpwd) -e subskey=$(subsKey) -e sblaccesskey=$(sblAccessSubsKey) | k6-to-junit sbl.xml
-
-   k6 run  --quiet $(Build.SourcesDirectory)/src/test/K6/src/tests/platform/storage/events.js -e env=$(environment) -e org=$(org) -e level2app=$(level2app) -e username=$(level2user) -e userpwd=$(userpwd) -e subskey=$(subsKey)  -e sblaccesskey=$(sblAccessSubsKey) | k6-to-junit storageevents.xml
+   k6 run  --quiet $(Build.SourcesDirectory)/src/test/K6/src/tests/platform/storage/events.js -e env=$(environment) -e org=$(org) -e level2app=$(level2app) -e username=$(level2user) -e userpwd=$(userpwd) -e appsaccesskey=$(appsAccessSubsKey)  -e sblaccesskey=$(sblAccessSubsKey) | k6-to-junit storageevents.xml
    
   workingDirectory: '$(Build.SourcesDirectory)'
   displayName: 'Platform'
   continueOnError: true
-  condition: succeeded()
+  condition: and(succeeded(), eq(variables['availability'], 'up'))
 
 - script: |   
-   k6 run  --quiet $(Build.SourcesDirectory)/src/test/K6/src/tests/platform/storage/deleteinstances.js -e env=$(environment) -e org=$(org) -e level2app=$(level2app) -e username=$(level2user) -e userpwd=$(userpwd) -e subskey=$(subsKey) -e sblaccesskey=$(sblAccessSubsKey)
+   k6 run  --quiet $(Build.SourcesDirectory)/src/test/K6/src/tests/platform/storage/deleteinstances.js -e env=$(environment) -e org=$(org) -e level2app=$(level2app) -e username=$(level2user) -e userpwd=$(userpwd) -e appsaccesskey=$(appsAccessSubsKey) -e sblaccesskey=$(sblAccessSubsKey)
    
   workingDirectory: '$(Build.SourcesDirectory)'
   displayName: 'Cleanup'
   continueOnError: true
-  condition: succeeded()
+  condition: and(succeeded(), eq(variables['availability'], 'up'))
 
 - task: PublishTestResults@2
   displayName: 'Publish Test Results'
@@ -75,4 +87,4 @@ steps:
     mergeTestResults: true
     failTaskOnFailedTests: true
     testRunTitle: '$(environment)_use_cases'
-  condition: succeededOrFailed()
+  condition: and(succeededOrFailed(), eq(variables['availability'], 'up'))

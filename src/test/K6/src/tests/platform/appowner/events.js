@@ -1,11 +1,11 @@
 /* 
     Test script to platform events api with app owner token
-    Command: docker-compose run k6 run src/tests/platform/appowner/events.js -e env=*** -e org=*** -e username=*** -e userpwd=*** -e level2app=***
-    -e maskinpoten=***
+    Command: docker-compose run k6 run /src/tests/platform/appowner/events.js 
+    -e env=*** -e org=*** -e username=*** -e userpwd=*** -e level2app=*** -e maskinpoten=***  -e appsaccesskey=***
 */
 import { check } from "k6";
 import { addErrorCount } from "../../../errorcounter.js";
-import * as events from "../../../api/platform/events.js"
+import * as events from "../../../api/platform/events/events.js"
 import * as appInstances from "../../../api/app/instances.js"
 import * as setUpData from "../../../setup.js";
 import { convertMaskinPortenToken } from "../../../api/platform/authentication.js"

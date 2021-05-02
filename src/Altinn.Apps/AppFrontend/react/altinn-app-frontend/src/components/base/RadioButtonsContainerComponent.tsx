@@ -8,7 +8,7 @@ import { makeStyles } from '@material-ui/core/styles';
 import * as React from 'react';
 import { AltinnAppTheme } from 'altinn-shared/theme';
 import { FormLabel } from '@material-ui/core';
-import classNames = require('classnames');
+import classNames from 'classnames';
 import { useSelector } from 'react-redux';
 import { IRuntimeState } from 'src/types';
 import { renderValidationMessagesForComponent } from '../../utils/render';
@@ -85,38 +85,35 @@ export const RadioButtonContainerComponent = (props: IRadioButtonsContainerProps
 
   React.useEffect(() => {
     returnSelected();
+  }, [options]);
+
+  React.useEffect(() => {
+    returnSelected();
   }, [props.formData]);
 
   const returnSelected = () => {
     if (
       !props.formData &&
-      props.preselectedOptionIndex &&
+      props.preselectedOptionIndex >= 0 &&
       options &&
       props.preselectedOptionIndex < options.length
     ) {
-      const preselectedValue = options[props.preselectedOptionIndex].value;
-      setSelected(preselectedValue);
+      const preSelectedValue = options[props.preselectedOptionIndex].value;
+      props.handleDataChange(preSelectedValue);
+      setSelected(preSelectedValue);
     } else {
-      setSelected(props.formData ? props.formData : '');
+      setSelected((props.formData !== undefined && props.formData !== null) ? props.formData : '');
     }
-  };
-
-  const StyledRadio = (radioProps: RadioProps) => {
-    return (
-      <Radio
-        className={classes.root}
-        disableRipple={true}
-        checkedIcon={<span className={classNames(classes.icon, classes.checkedIcon)} />}
-        icon={<span className={classes.icon} />}
-        {...radioProps}
-      />
-    );
   };
 
   const onDataChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     setSelected(event.target.value);
     props.handleFocusUpdate(props.id);
     props.handleDataChange(event.target.value);
+  };
+
+  const handleOnBlur = () => {
+    props.handleDataChange(props.formData);
   };
 
   const RenderLegend = props.legend;
@@ -133,6 +130,7 @@ export const RadioButtonContainerComponent = (props: IRadioButtonsContainerProps
         aria-label={props.title}
         name={props.title}
         value={selected}
+        onBlur={handleOnBlur}
         onChange={onDataChange}
         row={radioGroupIsRow}
         id={props.id}
@@ -140,7 +138,7 @@ export const RadioButtonContainerComponent = (props: IRadioButtonsContainerProps
         {options.map((option: any, index: number) => (
           <React.Fragment key={index}>
             <FormControlLabel
-              control={<StyledRadio autoFocus={props.shouldFocus && selected === option.value}/>}
+              control={<StyledRadio autoFocus={props.shouldFocus && selected === option.value} />}
               label={props.getTextResource(option.label)}
               value={option.value}
               classes={{ root: classNames(classes.margin) }}
@@ -151,5 +149,18 @@ export const RadioButtonContainerComponent = (props: IRadioButtonsContainerProps
         ))}
       </RadioGroup>
     </FormControl>
+  );
+};
+
+const StyledRadio = (radioProps: RadioProps) => {
+  const classes = useStyles(radioProps);
+  return (
+    <Radio
+      className={classes.root}
+      disableRipple={true}
+      checkedIcon={<span className={classNames(classes.icon, classes.checkedIcon)} />}
+      icon={<span className={classes.icon} />}
+      {...radioProps}
+    />
   );
 };

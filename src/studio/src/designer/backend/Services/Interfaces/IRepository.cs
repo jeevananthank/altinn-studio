@@ -2,10 +2,12 @@ using System.Collections.Generic;
 using System.IO;
 using System.Threading.Tasks;
 using System.Xml.Linq;
-using Altinn.Platform.Storage.Interface.Models;
+
 using Altinn.Studio.Designer.Configuration;
 using Altinn.Studio.Designer.ModelMetadatalModels;
 using Altinn.Studio.Designer.Models;
+
+using PlatformStorageModels = Altinn.Platform.Storage.Interface.Models;
 
 namespace Altinn.Studio.Designer.Services.Interfaces
 {
@@ -74,15 +76,6 @@ namespace Altinn.Studio.Designer.Services.Interfaces
         string GetLanguageResource(string org, string app, string id);
 
         /// <summary>
-        /// Gets the raw content of a code list
-        /// </summary>
-        /// <param name="org">Unique identifier of the organisation responsible for the app.</param>
-        /// <param name="app">Application identifier which is unique within an organisation.</param>
-        /// <param name="name">The name of the code list to retrieve</param>
-        /// <returns>Raw contents of a code list file</returns>
-        string GetCodelist(string org, string app, string name);
-
-        /// <summary>
         /// Update text resource
         /// </summary>
         /// <param name="org">Unique identifier of the organisation responsible for the app.</param>
@@ -137,16 +130,6 @@ namespace Altinn.Studio.Designer.Services.Interfaces
         bool DeleteLanguage(string org, string app, string id);
 
         /// <summary>
-        /// Method that stores a code list to disk
-        /// </summary>
-        /// <param name="org">Unique identifier of the organisation responsible for the app.</param>
-        /// <param name="app">Application identifier which is unique within an organisation.</param>
-        /// <param name="name">The name on config</param>
-        /// <param name="codelist">The content</param>
-        /// <returns>A boolean indicating if the code list was successfully saved</returns>
-        bool SaveCodeList(string org, string app, string name, string codelist);
-
-        /// <summary>
         /// Save the Rules configuration JSON file to disk
         /// </summary>
         /// <param name="org">Unique identifier of the organisation responsible for the app.</param>
@@ -154,15 +137,6 @@ namespace Altinn.Studio.Designer.Services.Interfaces
         /// <param name="resource">The content of the resource file</param>
         /// <returns>A boolean indicating if saving was ok</returns>
         bool SaveRuleConfigJson(string org, string app, string resource);
-
-        /// <summary>
-        /// Method that deletes a code list from disk
-        /// </summary>
-        /// <param name="org">Unique identifier of the organisation responsible for the app.</param>
-        /// <param name="app">Application identifier which is unique within an organisation.</param>
-        /// <param name="name">The name on config</param>
-        /// <returns>A boolean indicating the result</returns>
-        bool DeleteCodeList(string org, string app, string name);
 
         /// <summary>
         /// Updates the serviceMetadata
@@ -206,20 +180,15 @@ namespace Altinn.Studio.Designer.Services.Interfaces
         bool DeleteService(string org, string app);
 
         /// <summary>
-        /// Gets all code lists at org or app level
-        /// </summary>
-        /// <param name="org">Unique identifier of the organisation responsible for the app.</param>
-        /// <param name="app">Application identifier which is unique within an organisation.</param>
-        /// <returns>All code lists for at the given location</returns>
-        Dictionary<string, string> GetCodelists(string org, string app);
-
-        /// <summary>
         /// Returns the app texts
         /// </summary>
         /// <param name="org">Unique identifier of the organisation responsible for the app.</param>
         /// <param name="app">Application identifier which is unique within an organisation.</param>
-        /// <returns>The text</returns>
-        Dictionary<string, Dictionary<string, string>> GetServiceTexts(string org, string app);
+        /// <remarks>
+        /// Format of the dictionary is: &lt;textResourceElementId &lt;language, textResourceElement&gt;&gt;
+        /// </remarks>
+        /// <returns>The text resources</returns>
+        Dictionary<string, Dictionary<string, TextResourceElement>> GetServiceTexts(string org, string app);
 
         /// <summary>
         /// Returns the app languages
@@ -322,7 +291,10 @@ namespace Altinn.Studio.Designer.Services.Interfaces
         /// <param name="org">Unique identifier of the organisation responsible for the app.</param>
         /// <param name="app">Application identifier which is unique within an organisation.</param>
         /// <param name="texts">The texts to be saved</param>
-        void SaveServiceTexts(string org, string app, Dictionary<string, Dictionary<string, string>> texts);
+        /// <remarks>
+        /// Format of the dictionary is expedted to be : &lt;textResourceElementId &lt;language, textResourceElement&gt;&gt;
+        /// </remarks>
+        void SaveServiceTexts(string org, string app, Dictionary<string, Dictionary<string, TextResourceElement>> texts);
 
         /// <summary>
         /// Get XSD model from disk
@@ -429,6 +401,23 @@ namespace Altinn.Studio.Designer.Services.Interfaces
         bool SaveJsonThirdPartyComponents(string org, string app, string resource);
 
         /// <summary>
+        /// Gets the widget settings for an app
+        /// </summary>
+        /// <param name="org">Unique identifier of the organisation responsible for the app.</param>
+        /// <param name="app">Application identifier which is unique within an organisation.</param>
+        /// <returns>The content as string</returns>
+        string GetWidgetSettings(string org, string app);
+
+        /// <summary>
+        /// Adds text resources to existing language resource files
+        /// </summary>
+        /// <param name="org">Unique identifier of the organisation responsible for the app.</param>
+        /// <param name="app">Application identifier which is unique within an organisation.</param>
+        /// <param name="textResourcesList">The list of text resource items to add</param>
+        /// <returns>A boolean indicating if resources were added ok</returns>
+        bool AddTextResources(string org, string app, List<TextResource> textResourcesList);
+
+        /// <summary>
         /// Save the JSON form layout to disk
         /// </summary>
         /// <param name="org">Unique identifier of the organisation responsible for the app.</param>
@@ -489,7 +478,7 @@ namespace Altinn.Studio.Designer.Services.Interfaces
         /// <param name="org">Unique identifier of the organisation responsible for the app.</param>
         /// <param name="app">Application identifier which is unique within an organisation.</param>
         /// <returns>The application  metadata for an application.</returns>
-        Application GetApplication(string org, string app);
+        PlatformStorageModels.Application GetApplication(string org, string app);
 
         /// <summary>
         /// Creates the application metadata file
@@ -506,7 +495,7 @@ namespace Altinn.Studio.Designer.Services.Interfaces
         /// <param name="app">Application identifier which is unique within an organisation.</param>
         /// <param name="applicationMetadata">The application metadata to be updated</param>
         /// <returns>true if the metadata is updated successfully</returns>
-        bool UpdateApplication(string org, string app, Application applicationMetadata);
+        bool UpdateApplication(string org, string app, PlatformStorageModels.Application applicationMetadata);
 
         /// <summary>
         /// Updates app title in application metadata
@@ -558,5 +547,22 @@ namespace Altinn.Studio.Designer.Services.Interfaces
         /// Lists the content of a repository
         /// </summary>
         List<FileSystemObject> GetContents(string org, string repository, string path = "");
+
+        /// <summary>
+        /// Returns the path to the app folder
+        /// </summary>
+        /// <param name="org">The application owner id.</param>
+        /// <param name="app">Application identifier which is unique within an organisation.</param>
+        /// <returns></returns>
+        string GetAppPath(string org, string app);
+
+        /// <summary>
+        ///  Updates application model with new app logic model
+        /// </summary>
+        /// <param name="org">The org</param>
+        /// <param name="app">The app</param>
+        /// <param name="dataTypeId">The dataTypeId for the new app logic datamodel</param>
+        /// <param name="classRef">The class ref</param>
+        void UpdateApplicationWithAppLogicModel(string org, string app, string dataTypeId, string classRef);
     }
 }

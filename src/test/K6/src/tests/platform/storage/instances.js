@@ -1,13 +1,14 @@
 /* 
     Test data required: username and password, deployed app that requires level 2 login (reference app: ttd/apps-test)
-    Command: docker-compose run k6 run src/tests/platform/storage/instances.js -e env=*** -e org=*** -e username=*** -e userpwd=*** -e level2app=***
+    Command: docker-compose run k6 run /src/tests/platform/storage/instances.js 
+    -e env=*** -e org=*** -e username=*** -e userpwd=*** -e level2app=*** -e appsaccesskey=*** -e sblaccesskey=***
 */
 
 import { check } from "k6";
 import { addErrorCount } from "../../../errorcounter.js";
-import * as instances from "../../../api/storage/instances.js"
+import * as instances from "../../../api/platform/storage/instances.js"
 import * as setUpData from "../../../setup.js";
-import * as sbl from "../../../api/storage/messageboxinstances.js"
+import * as sbl from "../../../api/platform/storage/messageboxinstances.js"
 
 const userName = __ENV.username;
 const userPassword = __ENV.userpwd;
@@ -34,7 +35,7 @@ export function setup() {
 
 
 //Tests for platform Storage: Instances
-export default function (data) {
+export default function(data) {
     const runtimeToken = data["RuntimeToken"];
     const partyId = data["partyId"];
     var instanceId = "";
@@ -60,9 +61,33 @@ export default function (data) {
     addErrorCount(success);
 
     //Test to get all instances for a party from storage and validate the response to have 200 as code
-    res = instances.getAllinstancesByPartyId(runtimeToken, partyId);
+    var filters = {
+        "instanceOwner.partyId": partyId
+    };
+    res = instances.getAllinstancesWithFilters(runtimeToken, filters);
     success = check(res, {
         "GET Instances by instanceOwner status is 200:": (r) => r.status === 200
+    });
+    addErrorCount(success);
+
+    //Test to get all instances with filters isArchived true and isSoftDeleted false
+    //and validate the response to have 200 as code
+    filters = {
+        "instanceOwner.partyId": partyId,
+        "status.isArchived": true,
+        "status.isSoftDeleted": false
+    };
+    res = instances.getAllinstancesWithFilters(runtimeToken, filters);
+    success = check(res, {
+        "GET Instances with filters status is 200:": (r) => r.status === 200,
+        "GET Instances isHardDeleted is false:": (r) => {
+            var responseInstances = r.json("instances");
+            return responseInstances.every(instance => instance.status.isHardDeleted == false);
+        },
+        "GET Instances isArchived is true:": (r) => {
+            var responseInstances = r.json("instances");
+            return responseInstances.every(instance => instance.status.isArchived == true);
+        }
     });
     addErrorCount(success);
 

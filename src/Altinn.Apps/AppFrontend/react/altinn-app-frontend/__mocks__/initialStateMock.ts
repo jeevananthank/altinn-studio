@@ -30,7 +30,6 @@ export function getInitialStateMock(customStates?: Partial<IRuntimeState>): IRun
     },
     formData: getFormDataStateMock(),
     formDataModel: {
-      dataModel: [],
       error: null,
       schemas: null,
     },
@@ -67,7 +66,22 @@ export function getInitialStateMock(customStates?: Partial<IRuntimeState>): IRun
       error: null,
     },
     organisationMetaData: {
-      allOrgs: null,
+      allOrgs: {
+        mockOrg: {
+          name: {
+            en: 'Mock Ministry',
+            nb: 'Mockdepartementet',
+            nn: 'Mockdepartementet',
+          },
+          logo: '',
+          orgnr: '',
+          homepage: '',
+          environments: [
+            'tt02',
+            'production',
+          ],
+        },
+      },
       error: null,
     },
     party: {
@@ -79,12 +93,14 @@ export function getInitialStateMock(customStates?: Partial<IRuntimeState>): IRun
     },
     process: {
       error: null,
-      state: null,
+      taskType: null,
+      taskId: null,
     },
     profile: getProfileStateMock(),
     queue: {
       appTask: null,
       dataTask: null,
+      infoTask: null,
     },
     textResources: {
       resources: [],

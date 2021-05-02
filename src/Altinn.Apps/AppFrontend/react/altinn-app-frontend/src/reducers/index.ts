@@ -4,10 +4,10 @@ import { combineReducers,
   ReducersMapObject } from 'redux';
 import OptionsReducer, { IOptionsState } from '../shared/resources/options/optionsReducer';
 import FormDataReducer, { IFormDataState } from '../features/form/data/formDataReducer';
-import FormDataModel, { IDataModelState } from '../features/form/datamodel/formDatamodelReducer';
 import { IFormDynamicState } from '../features/form/dynamics';
+import DataModelReducer, { IDataModelState } from '../features/form/datamodel/datamodelSlice';
 import FormDynamicsReducer from '../features/form/dynamics/formDynamicsReducer';
-import FormLayoutReducer, { ILayoutState } from '../features/form/layout/formLayoutReducer';
+import FormLayoutReducer, { ILayoutState } from '../features/form/layout/formLayoutSlice';
 import FormRuleReducer, { IFormRuleState } from '../features/form/rules/rulesReducer';
 import ValidationReducer, { IValidationState } from '../features/form/validation/validationReducer';
 import InstantiationReducer, { IInstantiationState } from '../features/instantiate/instantiation/reducer';
@@ -20,8 +20,8 @@ import PartyReducer, { IPartyState } from '../shared/resources/party/partyReduce
 import processReducer, { IProcessState } from '../shared/resources/process/processReducer';
 import ProfileReducer, { IProfileState } from '../shared/resources/profile/profileReducers';
 import TextResourcesReducer, { ITextResourcesState } from '../shared/resources/textResources/textResourcesReducer';
-import IsLoadingReducer, { IIsLoadingState } from '../shared/resources/isLoading/isLoadingReducers';
-import QueueReducer, { IQueueState } from '../shared/resources/queue/queueReducer';
+import IsLoadingReducer, { IIsLoadingState } from '../shared/resources/isLoading/isLoadingSlice';
+import QueueReducer, { IQueueState } from '../shared/resources/queue/queueSlice';
 
 export interface IReducers<T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16, T17, T18, T19> {
   formLayout: T1;
@@ -73,7 +73,7 @@ const reducers: IRuntimeReducers = {
   applicationMetadata: ApplicationMetadataReducer,
   attachments: AttachmentReducer,
   formData: FormDataReducer,
-  formDataModel: FormDataModel,
+  formDataModel: DataModelReducer,
   formDynamics: FormDynamicsReducer,
   formLayout: FormLayoutReducer,
   formRules: FormRuleReducer,

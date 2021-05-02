@@ -7,6 +7,7 @@
 /* eslint-disable jsx-a11y/no-static-element-interactions */
 import * as React from 'react';
 import { connect } from 'react-redux';
+import { Dispatch } from 'redux';
 import altinnTheme from 'app-shared/theme/altinnStudioTheme';
 import { createStyles, IconButton, withStyles, WithStyles, Grid } from '@material-ui/core';
 
@@ -21,15 +22,17 @@ import { makeGetActiveFormContainer,
   makeGetLayoutContainersSelector } from '../selectors/getLayoutData';
 import { renderSelectGroupDataModelBinding, renderSelectTextFromResources } from '../utils/render';
 import { FormComponentWrapper } from '../components/FormComponent';
-import FormDesignerActionDispatchers from '../actions/formDesignerActions/formDesignerActionDispatcher';
 import { getTextResource } from '../utils/language';
+import { idExists, validComponentId } from '../utils/formLayout';
+import { FormLayoutActions } from '../features/formDesigner/formLayout/formLayoutSlice';
 
-export interface IProvidedContainerProps extends WithStyles<typeof styles>{
+export interface IProvidedContainerProps extends WithStyles<typeof styles> {
   id: string;
   index?: number;
   baseContainer?: boolean;
   items?: string[];
   layoutOrder?: IFormLayoutOrder;
+  dispatch?: Dispatch;
   onMoveComponent?: (...args: any) => void;
   onDropComponent?: (...args: any) => void;
   onMoveContainer?: (...args: any) => void;
@@ -40,7 +43,7 @@ export interface IProvidedContainerProps extends WithStyles<typeof styles>{
 export interface IContainerProps extends IProvidedContainerProps {
   dataModelGroup?: string;
   itemOrder: any;
-  components: IFormDesignerComponent;
+  components: IFormDesignerComponents;
   containers: any;
   repeating: boolean;
   index?: number;
@@ -127,9 +130,6 @@ const styles = createStyles({
     border: '0.15rem solid #fff',
   },
 });
-
-const validComponentId = /^[0-9a-zA-Z][0-9a-zA-Z-]*[0-9a-zA-Z]$/;
-
 export class ContainerComponent extends React.Component<IContainerProps, IContainerState> {
   public static getDerivedStateFromProps(nextProps: IContainerProps, prevState: IContainerState) {
     if (prevState.currentlyDragging) {
@@ -207,13 +207,15 @@ export class ContainerComponent extends React.Component<IContainerProps, IContai
   }
 
   public handleContainerDelete = (event: React.MouseEvent<HTMLButtonElement, MouseEvent>) => {
+    const { dispatch } = this.props;
     event.stopPropagation();
-    FormDesignerActionDispatchers.deleteFormContainer(this.props.id, this.props.index);
+    dispatch(FormLayoutActions.deleteFormContainer({ id: this.props.id, index: this.props.index }));
   }
 
   public handleDiscard = (event: React.MouseEvent<HTMLButtonElement, MouseEvent>) => {
     event.stopPropagation();
-    FormDesignerActionDispatchers.deleteActiveListAction();
+    const { dispatch } = this.props;
+    dispatch(FormLayoutActions.deleteActiveList());
     this.setState({
       editMode: false,
       tmpContainer: JSON.parse(JSON.stringify(this.props.containers[this.props.id])) as unknown as ICreateFormContainer,
@@ -223,8 +225,9 @@ export class ContainerComponent extends React.Component<IContainerProps, IContai
 
   public handleSave = (event: React.MouseEvent<HTMLButtonElement, MouseEvent>) => {
     event.stopPropagation();
+    const { dispatch } = this.props;
     if (this.state.tmpId && this.state.tmpId !== this.props.id) {
-      if (this.idAlreadyExist(this.state.tmpId)) {
+      if (idExists(this.state.tmpId, this.props.components, this.props.containers)) {
         this.setState(() => ({
           groupIdError: getLanguageFromKey('ux_editor.modal_properties_group_id_not_unique_error', this.props.language),
         }));
@@ -233,9 +236,12 @@ export class ContainerComponent extends React.Component<IContainerProps, IContai
           groupIdError: getLanguageFromKey('ux_editor.modal_properties_group_id_not_valid', this.props.language),
         }));
       } else {
-        FormDesignerActionDispatchers.updateFormContainer(this.state.tmpContainer, this.props.id);
-        FormDesignerActionDispatchers.deleteActiveListAction();
-        FormDesignerActionDispatchers.updateContainerId(this.props.id, this.state.tmpId);
+        dispatch(FormLayoutActions.updateFormContainer({
+          updatedContainer: this.state.tmpContainer,
+          id: this.props.id,
+        }));
+        dispatch(FormLayoutActions.deleteActiveList());
+        dispatch(FormLayoutActions.updateContainerId({ currentId: this.props.id, newId: this.state.tmpId }));
         this.setState({
           editMode: false,
         });
@@ -246,8 +252,11 @@ export class ContainerComponent extends React.Component<IContainerProps, IContai
       });
     } else {
       // No validations, save.
-      FormDesignerActionDispatchers.updateFormContainer(this.state.tmpContainer, this.props.id);
-      FormDesignerActionDispatchers.deleteActiveListAction();
+      dispatch(FormLayoutActions.updateFormContainer({
+        updatedContainer: this.state.tmpContainer,
+        id: this.props.id,
+      }));
+      dispatch(FormLayoutActions.deleteActiveList());
       this.setState({
         editMode: false,
       });
@@ -255,7 +264,10 @@ export class ContainerComponent extends React.Component<IContainerProps, IContai
   }
 
   public handleNewId = (event: any) => {
-    if (this.idAlreadyExist(event.target.value) && event.target.value !== this.props.id) {
+    if (
+      idExists(event.target.value, this.props.components, this.props.containers) &&
+      event.target.value !== this.props.id
+    ) {
       this.setState(() => ({
         groupIdError: getLanguageFromKey('ux_editor.modal_properties_group_id_not_unique_error', this.props.language),
       }));
@@ -268,11 +280,6 @@ export class ContainerComponent extends React.Component<IContainerProps, IContai
         groupIdError: null,
       });
     }
-  }
-
-  public idAlreadyExist = (newId: string): boolean => {
-    return Object.keys(this.props.containers).findIndex((key) => key.toUpperCase() === newId.toUpperCase()) > -1 ||
-      Object.keys(this.props.components).findIndex((key) => key.toUpperCase() === newId.toUpperCase()) > -1;
   }
 
   public handleClosePopup = () => {
@@ -359,6 +366,7 @@ export class ContainerComponent extends React.Component<IContainerProps, IContai
 
   public handleEditMode = (event: React.MouseEvent<HTMLButtonElement, MouseEvent>) => {
     event.stopPropagation();
+    const { dispatch } = this.props;
     this.setState((prevState: IContainerState) => {
       const isEdit = !(prevState.editMode);
       if (isEdit) {
@@ -370,7 +378,7 @@ export class ContainerComponent extends React.Component<IContainerProps, IContai
           order: this.props.index,
         };
         this.props.sendListToParent([activeObject]);
-        FormDesignerActionDispatchers.updateActiveList(activeObject, this.props.activeList);
+        dispatch(FormLayoutActions.updateActiveList({ containerList: this.props.activeList, listItem: activeObject }));
       }
       return {
         editMode: isEdit,
@@ -524,31 +532,31 @@ export class ContainerComponent extends React.Component<IContainerProps, IContai
               true)
             }
             {(this.props.itemOrder.length > 0) &&
-            <Grid item={true} style={{ marginTop: '24px' }}>
-              {this.props.language.ux_editor.modal_properties_group_table_headers}
-              {this.props.itemOrder.map((id: string, index: number) => {
-                const componentLabel = getTextResource(
-                  this.props.components[id].textResourceBindings?.title,
-                  this.props.textResources,
-                );
-                const tableHeaders = this.state.tmpContainer.tableHeaders || this.props.itemOrder;
-                return (
-                  <Grid item={true} xs={12}>
-                    <AltinnCheckBox
-                      checked={tableHeaders.includes(id)}
-                      onChangeFunction={() => this.handleTableHeadersChange(id, index)}
-                    />
-                    {componentLabel}
-                  </Grid>
-                );
-              })}
-              <div ref={this.state.tableHeadersPopoverRef} />
-              <ErrorPopover
-                anchorEl={this.state.tableHeadersError ? this.state.tableHeadersPopoverRef.current : null}
-                onClose={this.handleClosePopup}
-                errorMessage={this.state.tableHeadersError}
-              />
-            </Grid>
+              <Grid item={true} style={{ marginTop: '24px' }}>
+                {this.props.language.ux_editor.modal_properties_group_table_headers}
+                {this.props.itemOrder.map((id: string, index: number) => {
+                  const componentLabel = getTextResource(
+                    this.props.components[id].textResourceBindings?.title,
+                    this.props.textResources,
+                  );
+                  const tableHeaders = this.state.tmpContainer.tableHeaders || this.props.itemOrder;
+                  return (
+                    <Grid item={true} xs={12}>
+                      <AltinnCheckBox
+                        checked={tableHeaders.includes(id)}
+                        onChangeFunction={() => this.handleTableHeadersChange(id, index)}
+                      />
+                      {componentLabel}
+                    </Grid>
+                  );
+                })}
+                <div ref={this.state.tableHeadersPopoverRef} />
+                <ErrorPopover
+                  anchorEl={this.state.tableHeadersError ? this.state.tableHeadersPopoverRef.current : null}
+                  onClose={this.handleClosePopup}
+                  errorMessage={this.state.tableHeadersError}
+                />
+              </Grid>
             }
           </Grid>
         }
@@ -675,6 +683,7 @@ export class ContainerComponent extends React.Component<IContainerProps, IContai
           index={index}
           items={this.props.layoutOrder[id]}
           baseContainer={false}
+          layoutOrder={this.props.layoutOrder}
           onDropComponent={this.props.onDropComponent}
           onMoveComponent={this.props.onMoveComponent}
           onDropContainer={this.props.onDropContainer}
@@ -754,7 +763,8 @@ const makeMapStateToProps = () => {
       formContainerActive: GetActiveFormContainer(state, props),
       components: GetLayoutComponentsSelector(state),
       containers: GetLayoutContainersSelector(state),
-      language: state.appData.language.language,
+      dispatch: props.dispatch,
+      language: state.appData.languageState.language,
       itemOrder: !props.items ? itemOrder : props.items,
       id: props.id,
       index: props.index,
@@ -770,4 +780,6 @@ const makeMapStateToProps = () => {
   return mapStateToProps;
 };
 
+// https://github.com/microsoft/TypeScript/issues/41615
+// @ts-ignore
 export const Container = withStyles(styles, { withTheme: true })(connect(makeMapStateToProps)(ContainerComponent));

@@ -4,9 +4,11 @@ using System.IO;
 using System.Linq;
 using System.Text.Json;
 using System.Threading.Tasks;
+
 using Altinn.Platform.Events.Models;
 using Altinn.Platform.Events.Services.Interfaces;
 using Altinn.Platform.Events.Tests.Models;
+
 using Newtonsoft.Json;
 
 namespace Altinn.Platform.Events.Tests.Mocks
@@ -65,6 +67,11 @@ namespace Altinn.Platform.Events.Tests.Mocks
             return null;
         }
 
+        public Task PushToConsumer(CloudEventEnvelope cloudEventEnvelope)
+        {
+            throw new NotImplementedException();
+        }
+
         public Task<string> StoreCloudEvent(CloudEvent cloudEvent)
         {
             throw new NotImplementedException();
@@ -72,7 +79,7 @@ namespace Altinn.Platform.Events.Tests.Mocks
 
         private string GetEventsPath()
         {
-            string unitTestFolder = Path.GetDirectoryName(new Uri(typeof(EventsServiceMock).Assembly.CodeBase).LocalPath);
+            string unitTestFolder = Path.GetDirectoryName(new Uri(typeof(EventsServiceMock).Assembly.Location).LocalPath);
             return Path.Combine(unitTestFolder, @"..\..\..\Data\events");
         }
     }

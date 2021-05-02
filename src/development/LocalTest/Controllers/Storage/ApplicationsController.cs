@@ -40,11 +40,26 @@ namespace Altinn.Platform.Storage.Controllers
         }
 
         /// <summary>
+        /// Get all applications.
+        /// </summary>
+        /// <returns>List of all applications</returns>
+        [AllowAnonymous]
+        [HttpGet]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [Produces("application/json")]
+        public async Task<ActionResult<ApplicationList>> GetAll()
+        {
+            List<Application> applications = await repository.FindAll();
+            ApplicationList applicationList = new ApplicationList { Applications = applications };
+            return Ok(applicationList);
+        }
+
+        /// <summary>
         /// Get all applications deployed by a given application owner.
         /// </summary>
         /// <param name="org">The id of the application owner.</param>
         /// <returns>List of all applications depoyed by the given owner.</returns>
-        [Authorize]
+        [AllowAnonymous]
         [HttpGet("{org}")]
         [ProducesResponseType(StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
@@ -58,7 +73,7 @@ namespace Altinn.Platform.Storage.Controllers
 
             try
             {
-                List<Application> applications = await repository.ListApplications(org);
+                List<Application> applications = await repository.FindByOrg(org);
 
                 ApplicationList applicationList = new ApplicationList { Applications = applications };
 
@@ -82,7 +97,7 @@ namespace Altinn.Platform.Storage.Controllers
         /// <param name="org">Unique identifier of the organisation responsible for the app.</param>
         /// <param name="app">Application identifier which is unique within an organisation.</param>
         /// <returns>The metadata for the identified application.</returns>
-        [Authorize]
+        [AllowAnonymous]
         [HttpGet("{org}/{app}")]
         [ProducesResponseType(StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
@@ -121,7 +136,7 @@ namespace Altinn.Platform.Storage.Controllers
         /// <param name="appId">The unique identification of the application to be added. Format: '{org}/{app}'</param>
         /// <param name="application">The application metadata object to store.</param>
         /// <returns>The applicaiton metadata object.</returns>
-        [Authorize(Policy = AuthzConstants.POLICY_SCOPE_APPDEPLOY)]
+        [Authorize(Policy = AuthzConstants.POLICY_STUDIO_DESIGNER)]
         [HttpPost]
         [Consumes("application/json")]
         [ProducesResponseType(StatusCodes.Status200OK)]
@@ -129,6 +144,7 @@ namespace Altinn.Platform.Storage.Controllers
         [Produces("application/json")]
         public async Task<ActionResult<Application>> Post(string appId, [FromBody] Application application)
         {
+            // TODO Validate only Designer can call this.
             if (!IsValidAppId(appId))
             {
                 return BadRequest("AppId is not valid.");
@@ -201,48 +217,13 @@ namespace Altinn.Platform.Storage.Controllers
         }
 
         /// <summary>
-        /// Checks if an appId is valid
-        /// </summary>
-        /// <param name="appId">the id to check</param>
-        /// <returns>true if it is valid, false otherwise</returns>
-        [ApiExplorerSettings(IgnoreApi = true)]
-        public bool IsValidAppId(string appId)
-        {
-            if (string.IsNullOrEmpty(appId))
-            {
-                return false;
-            }
-
-            string[] parts = appId.Split("/");
-
-            if (parts.Length != 2)
-            {
-                return false;
-            }
-
-            string orgNamePattern = @"^[a-zæøå][a-zæåø0-9]*$";
-            if (!Regex.IsMatch(parts[0], orgNamePattern))
-            {
-                return false;
-            }
-
-            string appPattern = @"^[a-zæøå][a-zæøå0-9\-]*$";
-            if (!Regex.IsMatch(parts[1], appPattern))
-            {
-                return false;
-            }
-
-            return true;
-        }
-
-        /// <summary>
         /// Updates application metadata for a given application.
         /// </summary>
         /// <param name="org">The id of theowner of the application to update.</param>
         /// <param name="app">The name of the application.</param>
         /// <param name="application">The application metadata object to store.</param>
         /// <returns>The updated application metadata.</returns>
-        [Authorize(Policy = AuthzConstants.POLICY_SCOPE_APPDEPLOY)]
+        [Authorize(Policy = AuthzConstants.POLICY_STUDIO_DESIGNER)]
         [HttpPut("{org}/{app}")]
         [Consumes("application/json")]
         [ProducesResponseType(StatusCodes.Status200OK)]
@@ -292,8 +273,8 @@ namespace Altinn.Platform.Storage.Controllers
             existingApplication.Title = application.Title;
             existingApplication.ProcessId = application.ProcessId;
             existingApplication.DataTypes = application.DataTypes;
-
             existingApplication.PartyTypesAllowed = application.PartyTypesAllowed ?? new PartyTypesAllowed();
+            existingApplication.AutoDeleteOnProcessEnd = application.AutoDeleteOnProcessEnd;
 
             try
             {
@@ -325,7 +306,7 @@ namespace Altinn.Platform.Storage.Controllers
         /// <param name="app">Application identifier which is unique within an organisation.</param>
         /// <param name="hard">Controls whether the application should be deleted permanently.</param>
         /// <returns>The application metadata of the deleted application.</returns>
-        [Authorize(Policy = AuthzConstants.POLICY_SCOPE_APPDEPLOY)]
+        [Authorize(Policy = AuthzConstants.POLICY_STUDIO_DESIGNER)]
         [HttpDelete("{org}/{app}")]
         [ProducesResponseType(StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
@@ -374,6 +355,41 @@ namespace Altinn.Platform.Storage.Controllers
                 logger.LogError($"Unable to perform request: {e}");
                 return StatusCode(500, $"Unable to perform request: {e}");
             }
+        }
+
+        /// <summary>
+        /// Checks if an appId is valid
+        /// </summary>
+        /// <param name="appId">the id to check</param>
+        /// <returns>true if it is valid, false otherwise</returns>
+        [ApiExplorerSettings(IgnoreApi = true)]
+        public bool IsValidAppId(string appId)
+        {
+            if (string.IsNullOrEmpty(appId))
+            {
+                return false;
+            }
+
+            string[] parts = appId.Split("/");
+
+            if (parts.Length != 2)
+            {
+                return false;
+            }
+
+            string orgNamePattern = @"^[a-zæøå][a-zæåø0-9]*$";
+            if (!Regex.IsMatch(parts[0], orgNamePattern))
+            {
+                return false;
+            }
+
+            string appPattern = @"^[a-zæøå][a-zæøå0-9\-]*$";
+            if (!Regex.IsMatch(parts[1], appPattern))
+            {
+                return false;
+            }
+
+            return true;
         }
 
         private string GetUserId()

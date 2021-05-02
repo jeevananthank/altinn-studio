@@ -27,10 +27,34 @@ export const getAppDeploymentsUrl = () => {
   return `${origin}/designer/api/v1/${org}/${app}/Deployments`;
 };
 
-export const getFetchDataModelUrl = (filePath: string) => {
-  return `${origin}/designer/api/${org}/${app}/datamodels/GetDatamodel?filePath=${encodeURIComponent(filePath)}`;
+export const getFetchDataModelUrl = (modelName: string) => {
+  return `${origin}/designer/api/${org}/${app}/datamodels/GetDatamodel?modelName=${encodeURIComponent(modelName)}`;
 };
 
-export const getSaveDataModelUrl = (filePath: string) => {
-  return `${origin}/designer/api/${org}/${app}/datamodels/UpdateDatamodel?filePath=${encodeURIComponent(filePath)}`;
+export const getSaveDataModelUrl = (modelName: string) => {
+  return `${origin}/designer/api/${org}/${app}/datamodels/UpdateDatamodel?modelName=${encodeURIComponent(modelName)}`;
+};
+
+export const getDeleteDataModelUrl = (modelName: string) => {
+  return `${origin}/designer/api/${org}/${app}/datamodels/DeleteDatamodel?modelName=${encodeURIComponent(modelName)}`;
+};
+
+export const getFetchDeployPermissionsUrl = () => {
+  return `${origin}/designer/api/v1/${org}/${app}/deployments/permissions`;
+};
+
+export const getRemainingSessionTimeUrl = () => {
+  return `${origin}/designer/api/v1/session/remaining`;
+};
+
+export const getKeepAliveUrl = () => {
+  return `${origin}/designer/api/v1/session/keepalive`;
+};
+
+export const getGiteaSignOutUrl = () => {
+  return `${origin}/repos/user/logout`;
+};
+
+export const getStudioSignOutUrl = () => {
+  return `${origin}/Home/Logout`;
 };

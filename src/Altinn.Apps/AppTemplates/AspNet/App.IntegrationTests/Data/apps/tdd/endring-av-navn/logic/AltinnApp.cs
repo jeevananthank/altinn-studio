@@ -4,12 +4,14 @@ using System.Threading.Tasks;
 
 using Altinn.App.Common.Enums;
 using Altinn.App.Common.Models;
+using Altinn.App.Services.Configuration;
 using Altinn.App.Services.Implementation;
 using Altinn.App.Services.Interface;
 using Altinn.Platform.Storage.Interface.Models;
-
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc.ModelBinding;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 #pragma warning disable SA1300 // Element should begin with upper-case letter
 namespace App.IntegrationTests.Mocks.Apps.tdd.endring_av_navn
@@ -24,7 +26,12 @@ namespace App.IntegrationTests.Mocks.Apps.tdd.endring_av_navn
             IProcess processService,
             IPDF pdfService,
             IPrefill prefillService,
-            IInstance instanceService) : base(appResourcesService, logger, dataService, processService, pdfService, prefillService, instanceService)
+            IInstance instanceService,
+            IOptions<GeneralSettings> settings,
+            IText textService,
+            IRegister registerService,
+            IProfile profileService,
+            IHttpContextAccessor httpContextAccessor) : base(appResourcesService, logger, dataService, processService, pdfService, prefillService, instanceService, registerService, settings, profileService, textService, httpContextAccessor)
         {
         }
 
@@ -67,6 +74,14 @@ namespace App.IntegrationTests.Mocks.Apps.tdd.endring_av_navn
 
         public override async Task RunDataCreation(Instance instance, object data)
         {
+            if (data is App.IntegrationTests.Mocks.Apps.tdd.endring_av_navn.Skjema)
+            {
+                Skjema skjema = (Skjema)data;
+                skjema.Begrunnelsegrp9317 = new Begrunnelsegrp9317();
+                skjema.Begrunnelsegrp9317.BegrunnelseForNyttNavngrp9318 = new BegrunnelseForNyttNavngrp9318();
+                skjema.Begrunnelsegrp9317.BegrunnelseForNyttNavngrp9318.PersonFornavnAnnetBegrunnelsedatadef34948 = new PersonFornavnAnnetBegrunnelsedatadef34948() { value = "Fordi det er en enhetstest" };
+            }
+
             await Task.CompletedTask;
         }
 
@@ -121,6 +136,11 @@ namespace App.IntegrationTests.Mocks.Apps.tdd.endring_av_navn
         public override async Task RunProcessTaskEnd(string taskId, Instance instance)
         {
             return;
+        }
+
+        public override async Task<LayoutSettings> FormatPdf(LayoutSettings layoutSettings, object data)
+        {
+            return await Task.FromResult(layoutSettings);
         }
     }
 }

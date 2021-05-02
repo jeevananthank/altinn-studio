@@ -1,11 +1,11 @@
-import { IIsLoadingState } from 'src/shared/resources/isLoading/isLoadingReducers';
+import { IIsLoadingState } from 'src/shared/resources/isLoading/isLoadingSlice';
 import { IOptionsState } from 'src/shared/resources/options/optionsReducer';
 import { IFormRuleState } from 'src/features/form/rules/rulesReducer';
-import ajv from 'ajv';
+import Ajv from 'ajv';
+import { IDataModelState } from 'src/features/form/datamodel/datamodelSlice';
 import { IFormDataState } from '../features/form/data/formDataReducer';
-import { IDataModelState } from '../features/form/datamodel/formDatamodelReducer';
 import { IFormDynamicState } from '../features/form/dynamics';
-import { ILayoutState } from '../features/form/layout/formLayoutReducer';
+import { ILayoutState } from '../features/form/layout/formLayoutSlice';
 import { IValidationState } from '../features/form/validation/validationReducer';
 import { IInstantiationState } from '../features/instantiate/instantiation/reducer';
 import { IApplicationMetadataState } from '../shared/resources/applicationMetadata/reducer';
@@ -16,7 +16,7 @@ import { IOrgsState } from '../shared/resources/orgs/orgsReducers';
 import { IPartyState } from '../shared/resources/party/partyReducers';
 import { IProcessState } from '../shared/resources/process/processReducer';
 import { IProfileState } from '../shared/resources/profile/profileReducers';
-import { IQueueState } from '../shared/resources/queue/queueReducer';
+import { IQueueState } from '../shared/resources/queue/queueSlice';
 import { ITextResourcesState } from '../shared/resources/textResources/textResourcesReducer';
 
 export type FormComponentType =
@@ -132,12 +132,23 @@ export interface IFormRadioButtonComponent extends IFormComponent {
 
 export interface IFormTextAreaComponent extends IFormComponent { }
 
+export interface ILayoutSets {
+   sets: ILayoutSet[];
+}
+
+export interface ILayoutSet{
+  id: string;
+  dataType: string;
+  tasks: string[];
+}
+
 export interface ILayoutSettings {
   pages: IPagesSettings;
 }
 
 export interface IPagesSettings {
   order: string[];
+  triggers?: Triggers[];
 }
 
 export interface ILayoutNavigation {
@@ -160,6 +171,9 @@ export interface IOptions {
 
 export interface IRepeatingGroup {
   count: number;
+  baseGroupId?: string;
+  dataModelBinding?: string;
+  editIndex?: number;
 }
 
 export interface IRepeatingGroups {
@@ -205,14 +219,14 @@ export interface ISchemaValidator {
   rootElement: any;
   rootElementPath: string;
   schema: any;
-  validator: ajv.Ajv;
+  validator: Ajv;
 }
 
 export interface ITextResource {
   id: string;
   value: string;
-  unparsedValue: string;
-  variables:IVariable[];
+  unparsedValue?: string;
+  variables?:IVariable[];
 }
 
 export interface ITextResourceBindings {
@@ -231,11 +245,14 @@ export interface IValidationIssue {
 export interface IUiConfig {
   autoSave: boolean;
   currentView: string;
+  currentViewCacheKey?: string;
+  returnToView?: string;
   focus: string;
   hiddenFields: string[];
   repeatingGroups?: IRepeatingGroups;
   navigationConfig?: INavigationConfig;
   layoutOrder: string[];
+  pageTriggers?: Triggers[];
 }
 
 export interface IValidationResult {
@@ -244,6 +261,10 @@ export interface IValidationResult {
 }
 
 export interface IValidations {
+  [id: string]: ILayoutValidations;
+}
+
+export interface ILayoutValidations {
   [id: string]: IComponentValidations;
 }
 
@@ -252,9 +273,9 @@ export interface IVariable {
   key: string;
 }
 
-export enum ProcessSteps {
+export enum ProcessTaskType {
   Unknown = 'unknown',
-  FormFilling = 'data',
+  Data = 'data',
   Archived = 'ended',
   Confirm = 'confirmation',
   Feedback = 'feedback',
@@ -269,4 +290,11 @@ export enum Severity {
 
 export enum Triggers {
   Validation = 'validation',
+  CalculatePageOrder = 'calculatePageOrder',
+  ValidatePage = 'validatePage',
+  ValidateAllPages = 'validateAllPages'
+}
+
+export interface ILabelSettings {
+  optionalIndicator?: boolean;
 }

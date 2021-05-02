@@ -9,6 +9,7 @@ using Altinn.Platform.Storage.Interface.Enums;
 using Altinn.Platform.Storage.Interface.Models;
 using Altinn.Platform.Storage.Repository;
 using LocalTest.Configuration;
+
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
@@ -50,7 +51,7 @@ namespace Altinn.Platform.Storage.Controllers
         {
             _instanceRepository = instanceRepository;
             _instanceEventRepository = instanceEventRepository;
-            _storageBaseAndHost = $"{generalsettings.Value.GetHostName}/storage/api/v1/";
+            _storageBaseAndHost = $"{generalsettings.Value.Hostname}/storage/api/v1/";
             _logger = logger;
             _authorizationHelper = new AuthorizationHelper(pdp, authzLogger);
         }
@@ -122,6 +123,7 @@ namespace Altinn.Platform.Storage.Controllers
             if (existingInstance.Process.Ended == null && processState.Ended != null)
             {
                 existingInstance.Status ??= new InstanceStatus();
+                existingInstance.Status.IsArchived = true;
                 existingInstance.Status.Archived = processState.Ended;
             }
 

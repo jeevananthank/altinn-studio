@@ -1,8 +1,8 @@
-import { IAppDataState } from '../reducers/appDataReducer';
-import { IErrorState } from '../reducers/errorReducer';
-import { IFormDesignerState } from '../reducers/formDesignerReducer';
-import { IServiceConfigurationState } from '../reducers/serviceConfigurationReducer';
-import { IThirdPartyComponentsState } from '../reducers/thirdPartyComponentReducer';
+import { IWidgetState } from '../features/widgets/widgetsSlice';
+import { IAppDataState } from '../features/appData/appDataReducers';
+import { IErrorState } from '../features/error/errorSlice';
+import { IFormDesignerState } from '../features/formDesigner/formDesignerReducer';
+import { IServiceConfigurationState } from '../features/serviceConfigurations/serviceConfigurationTypes';
 
 declare global {
   export interface IFormDesignerNameSpace<T1, T2, T3, T4, T5> {
@@ -10,7 +10,7 @@ declare global {
     serviceConfigurations: T2;
     appData: T3;
     errors: T4;
-    thirdPartyComponents: T5;
+    widgets: T5;
   }
   export interface IAppState
     extends IFormDesignerNameSpace
@@ -18,7 +18,7 @@ declare global {
     IServiceConfigurationState,
     IAppDataState,
     IErrorState,
-    IThirdPartyComponentsState> { }
+    IWidgetState> { }
   export interface IAltinnEditableComponent {
     ModalContent: () => JSX.Element;
   }
@@ -123,6 +123,10 @@ declare global {
     validFileEndings?: string;
   }
 
+  export interface IFormDesignerActionRejected {
+    error: Error;
+  }
+
   export interface IDataModelBindings {
     [id: string]: string;
   }
@@ -152,14 +156,14 @@ declare global {
     | IFormFileUploaderComponent
     | IFormAddressComponent;
 
-  export interface IFormDesignerComponent {
+  export interface IFormDesignerComponents {
     [id: string]: IFormComponent;
   }
   export interface IFormDesignerComponentProps {
     [id: string]: IProperties;
   }
 
-  export interface IFormDesignerContainer {
+  export interface IFormDesignerContainers {
     [id: string]: ICreateFormContainer;
   }
 
@@ -172,8 +176,8 @@ declare global {
   }
 
   export interface IFormLayout {
-    components: IFormDesignerComponent;
-    containers: IFormDesignerContainer;
+    components: IFormDesignerComponents;
+    containers: IFormDesignerContainers;
     order: IFormLayoutOrder;
   }
 
@@ -245,13 +249,24 @@ declare global {
   export interface ITextResource {
     id: string;
     value: string;
-    unparsedValue: string;
-    variables:IVariable[];
+    unparsedValue?: string;
+    variables?: IVariable[];
   }
 
   export interface IVariable {
     key: string;
     dataSource: string;
+  }
+
+  export interface IWidget {
+    components: any[];
+    texts: IWidgetTexts[];
+    displayName: string;
+  }
+
+  export interface IWidgetTexts {
+    language: string;
+    resources: ITextResource[];
   }
 
   export type LogicMode = 'Calculation' | 'Dynamics' | 'Validation' | null;

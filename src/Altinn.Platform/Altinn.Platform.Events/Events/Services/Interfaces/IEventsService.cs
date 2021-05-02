@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
+
 using Altinn.Platform.Events.Models;
 
 namespace Altinn.Platform.Events.Services.Interfaces
@@ -21,5 +22,10 @@ namespace Altinn.Platform.Events.Services.Interfaces
         /// Gets list of cloud event based on query params
         /// </summary>
         Task<List<CloudEvent>> Get(string after, DateTime? from, DateTime? to, int partyId, List<string> source, List<string> type, int size = 50);
+
+        /// <summary>
+        /// Push a event to the given consumer endpoint
+        /// </summary>
+        Task PushToConsumer(CloudEventEnvelope cloudEventEnvelope);
     }
 }

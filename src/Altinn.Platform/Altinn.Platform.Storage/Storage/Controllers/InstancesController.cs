@@ -25,7 +25,9 @@ using Microsoft.Azure.Documents;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Primitives;
+
 using Newtonsoft.Json;
+
 using Substatus = Altinn.Platform.Storage.Interface.Models.Substatus;
 
 namespace Altinn.Platform.Storage.Controllers
@@ -99,6 +101,8 @@ namespace Altinn.Platform.Storage.Controllers
         /// <param name="visibleAfter">The visible after date time.</param>
         /// <param name="dueBefore">The due before date time.</param>
         /// <param name="excludeConfirmedBy">A string that will hide instances already confirmed by stakeholder.</param>
+        /// <param name="isSoftDeleted">Is the instance soft deleted.</param>
+        /// <param name="isArchived">Is the instance archived.</param>
         /// <param name="continuationToken">Continuation token.</param>
         /// <param name="size">The page size.</param>
         /// <returns>List of all instances for given instance owner.</returns>
@@ -121,6 +125,8 @@ namespace Altinn.Platform.Storage.Controllers
             [FromQuery(Name = "visibleAfter")] string visibleAfter,
             [FromQuery] string dueBefore,
             [FromQuery] string excludeConfirmedBy,
+            [FromQuery(Name = "status.isSoftDeleted")] bool isSoftDeleted,
+            [FromQuery(Name = "status.isArchived")] bool isArchived,
             string continuationToken,
             int? size)
         {
@@ -189,10 +195,8 @@ namespace Altinn.Platform.Storage.Controllers
 
                 if (!isOrgQuerying)
                 {
-                    int originalCount = result.Instances.Count;
                     result.Instances = await _authzHelper.AuthorizeInstances(User, result.Instances);
                     result.Count = result.Instances.Count;
-                    result.TotalHits -= originalCount - result.Instances.Count;
                 }
 
                 string nextContinuationToken = HttpUtility.UrlEncode(result.ContinuationToken);
@@ -202,7 +206,6 @@ namespace Altinn.Platform.Storage.Controllers
                 {
                     Instances = result.Instances,
                     Count = result.Instances.Count,
-                    TotalHits = result.TotalHits ?? 0
                 };
 
                 if (continuationToken == null)
@@ -325,6 +328,7 @@ namespace Altinn.Platform.Storage.Controllers
                 string userId = GetUserId();
 
                 Instance instanceToCreate = CreateInstanceFromTemplate(appInfo, instance, creationTime, userId);
+
                 storedInstance = await _instanceRepository.Create(instanceToCreate);
                 await DispatchEvent(InstanceEventType.Created, storedInstance);
                 _logger.LogInformation($"Created instance: {storedInstance.Id}");
@@ -394,11 +398,14 @@ namespace Altinn.Platform.Storage.Controllers
 
             if (hard)
             {
+                instance.Status.IsHardDeleted = true;
+                instance.Status.IsSoftDeleted = true;
                 instance.Status.HardDeleted = now;
                 instance.Status.SoftDeleted ??= now;
             }
             else
             {
+                instance.Status.IsSoftDeleted = true;
                 instance.Status.SoftDeleted = now;
             }
 
@@ -576,6 +583,96 @@ namespace Altinn.Platform.Storage.Controllers
             return Ok(updatedInstance);
         }
 
+        /// <summary>
+        /// Updates the presentation texts on an instance
+        /// </summary>
+        /// <param name="instanceOwnerPartyId">The party id of the instance owner.</param>
+        /// <param name="instanceGuid">The id of the instance to confirm as complete.</param>
+        /// <param name="presentationTexts">Collection of changes to the presentation texts collection.</param>
+        /// <returns>The instance that was updated with an updated collection of presentation texts.</returns>
+        [Authorize(Policy = AuthzConstants.POLICY_INSTANCE_WRITE)]
+        [HttpPut("{instanceOwnerPartyId:int}/{instanceGuid:guid}/presentationtexts")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [Consumes("application/json")]
+        [Produces("application/json")]
+        public async Task<ActionResult<Instance>> UpdatePresentationTexts(
+            [FromRoute] int instanceOwnerPartyId,
+            [FromRoute] Guid instanceGuid,
+            [FromBody] PresentationTexts presentationTexts)
+        {
+            if (presentationTexts?.Texts == null)
+            {
+                return BadRequest($"Missing parameter value: presentationTexts is misformed or empty");
+            }
+
+            string instanceId = $"{instanceOwnerPartyId}/{instanceGuid}";
+            Instance instance = await _instanceRepository.GetOne(instanceId, instanceOwnerPartyId);
+
+            if (instance.PresentationTexts == null)
+            {
+                instance.PresentationTexts = new Dictionary<string, string>();
+            }
+
+            foreach (KeyValuePair<string, string> entry in presentationTexts.Texts)
+            {
+                if (string.IsNullOrEmpty(entry.Value))
+                {
+                    instance.PresentationTexts.Remove(entry.Key);
+                }
+                else
+                {
+                    instance.PresentationTexts[entry.Key] = entry.Value;
+                }
+            }
+
+            Instance updatedInstance = await _instanceRepository.Update(instance);
+            return updatedInstance;
+        }
+
+        /// <summary>
+        /// Updates the data values on an instance.
+        /// </summary>
+        /// <param name="instanceOwnerPartyId">The party id of the instance owner.</param>
+        /// <param name="instanceGuid">The id of the instance to confirm as complete.</param>
+        /// <param name="dataValues">Collection of changes to the presentation texts collection.</param>
+        /// <returns>The instance that was updated with an updated collection of data values.</returns>
+        [Authorize(Policy = AuthzConstants.POLICY_INSTANCE_WRITE)]
+        [HttpPut("{instanceOwnerPartyId:int}/{instanceGuid:guid}/datavalues")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [Consumes("application/json")]
+        [Produces("application/json")]
+        public async Task<ActionResult<Instance>> UpdateDataValues(
+            [FromRoute] int instanceOwnerPartyId,
+            [FromRoute] Guid instanceGuid,
+            [FromBody] DataValues dataValues)
+        {
+            if (dataValues?.Values == null)
+            {
+                return BadRequest($"Missing parameter value: dataValues is misformed or empty");
+            }
+
+            var instanceId = $"{instanceOwnerPartyId}/{instanceGuid}";
+            Instance instance = await _instanceRepository.GetOne(instanceId, instanceOwnerPartyId);
+
+            instance.DataValues ??= new Dictionary<string, string>();            
+
+            foreach (KeyValuePair<string, string> entry in dataValues.Values)
+            {
+                if (string.IsNullOrEmpty(entry.Value))
+                {
+                    instance.DataValues.Remove(entry.Key);
+                }
+                else
+                {
+                    instance.DataValues[entry.Key] = entry.Value;
+                }
+            }
+
+            var updatedInstance = await _instanceRepository.Update(instance);
+            return Ok(updatedInstance);
+        }
+
         private Instance CreateInstanceFromTemplate(Application appInfo, Instance instanceTemplate, DateTime creationTime, string userId)
         {
             Instance createdInstance = new Instance
@@ -587,8 +684,8 @@ namespace Altinn.Platform.Storage.Controllers
                 LastChanged = creationTime,
                 AppId = appInfo.Id,
                 Org = appInfo.Org,
-                VisibleAfter = DateTimeHelper.ConvertToUniversalTime(instanceTemplate.VisibleAfter),
-                Status = instanceTemplate.Status,
+                VisibleAfter = DateTimeHelper.ConvertToUniversalTime(instanceTemplate.VisibleAfter) ?? creationTime,
+                Status = instanceTemplate.Status ?? new InstanceStatus(),
                 DueBefore = DateTimeHelper.ConvertToUniversalTime(instanceTemplate.DueBefore),
                 Data = new List<DataElement>(),
                 Process = instanceTemplate.Process,

@@ -91,34 +91,39 @@ describe('>>> features/form/components/Group.tsx', () => {
     ];
 
     mockLayout = {
-      layout: [
-        {
-          id: 'mock-container-id',
-          type: 'group',
-          dataModelBindings: {
-            group: 'Group',
+      layouts: {
+        FormLayout: [
+          {
+            id: 'mock-container-id',
+            type: 'group',
+            dataModelBindings: {
+              group: 'Group',
+            },
+            children: [
+              'field1',
+              'field2',
+              'field3',
+              'field4',
+            ],
           },
-          children: [
-            'field1',
-            'field2',
-            'field3',
-            'field4',
-          ],
-        },
-      ].concat(mockComponents),
+        ].concat(mockComponents),
+      },
       uiConfig: {
         hiddenFields: [],
         repeatingGroups: {
           'mock-container-id': {
             count: 3,
+            editIndex: -1,
           },
         },
         autosave: false,
+        currentView: 'FormLayout',
       },
     };
 
     mockContainer = {
       id: 'mock-container-id',
+      type: 'Group',
       children: [
         'field1',
         'field2',
@@ -141,7 +146,11 @@ describe('>>> features/form/components/Group.tsx', () => {
       resources: [{ id: 'option.label', value: 'Value to be shown' }],
     };
 
-    const initialState = getInitialStateMock({ formLayout: mockLayout, formData: mockData, textResources: mockTextResources});
+    const initialState = getInitialStateMock({
+      formLayout: mockLayout,
+      formData: mockData,
+      textResources: mockTextResources,
+    });
     mockStore = createStore(initialState);
   });
 
@@ -150,7 +159,7 @@ describe('>>> features/form/components/Group.tsx', () => {
       <Provider store={mockStore}>
         <GroupContainer
           components={mockComponents}
-          id='testGroupId'
+          id='mock-container-id'
           key='testKey'
           container={mockContainer}
         />
@@ -165,7 +174,7 @@ describe('>>> features/form/components/Group.tsx', () => {
         <GroupContainer
           components={mockComponents}
           container={mockContainer}
-          id='testGroupId'
+          id='mock-container-id'
           key='testKey'
         />
       </Provider>,
@@ -186,7 +195,7 @@ describe('>>> features/form/components/Group.tsx', () => {
         <GroupContainer
           container={mockContainerWithLabel}
           components={mockComponents}
-          id='testGroupId'
+          id='mock-container-id'
           key='testKey'
         />
       </Provider>,

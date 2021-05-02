@@ -1,3 +1,5 @@
+using System.Runtime.Serialization;
+
 namespace Altinn.Platform.Events.Configuration
 {
     /// <summary>
@@ -10,5 +12,15 @@ namespace Altinn.Platform.Events.Configuration
         /// Gets or sets the url for the Register API endpoint.
         /// </summary>
         public string ApiRegisterEndpoint { get; set; }
+
+        /// <summary>
+        /// Gets or sets the url for the Profile API endpoint
+        /// </summary>
+        public string ApiProfileEndpoint { get; set; }
+
+        /// <summary>
+        /// Gets or sets the apps domain used to match events source
+        /// </summary>
+        public string AppsDomain { get; set; }
     }
 }

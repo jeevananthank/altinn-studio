@@ -6,95 +6,75 @@ import config from '../config.json';
 
 let app = new App();
 let designer = new DesignerPage();
-let environment = (process.env.ENV).toLowerCase();
+const environment = (process.env.ENV).toLowerCase();
+const designerApp = config[environment].designerApp;
+const withoutDataModelApp = config[environment].withoutDataModelApp;
+const rulesApp = config[environment].rulesApp;
 
 fixture('GUI app designer tests')
   .page(app.baseUrl)
   .beforeEach(async t => {
-    t.ctx.deltMessage = "Du har delt dine endringer";
-    t.ctx.syncMessage = "Endringene er validert";
     await t
       .maximizeWindow()
-      .useRole(AutoTestUser)
-  })
+      .useRole(AutoTestUser);
+  });
 
-// Test to verify the drag and drop functionality in designer
 test('Drag and drop test', async () => {
-  var appName = config[environment].designerApp;
   await t
-    .navigateTo(app.baseUrl + "designer/" + appName + "#/ui-editor")
+    .navigateTo(app.baseUrl + 'designer/' + designerApp + '#/ui-editor')
     .expect(designer.inputComponent.exists).ok()
     .dragToElement(designer.inputComponent, designer.dragToArea)
     .click(designer.advancedComponentsGroup)
-    .dragToElement(designer.addressComponent, designer.dragToArea)
+    .dragToElement(designer.addressComponent, designer.dragToArea);
   await designer.deleteUIComponentsMethod(t);
 });
 
-//Test to add ui components using keyboard clicks
 test('Add one of each component to the designer using keyboard', async () => {
-  var appName = config[environment].designerApp;
   await t
-    .navigateTo(app.baseUrl + "designer/" + appName + "#/about")
-    .click(designer.createNavigationTab)
+    .navigateTo(app.baseUrl + 'designer/' + designerApp + '#/ui-editor')
     .expect(designer.inputComponent.visible).ok()
     .click(designer.inputComponent)
-    .pressKey('enter') //input button
+    .pressKey('enter')
     .pressKey('tab')
-    .pressKey('enter') //text area
+    .pressKey('enter')
     .pressKey('tab')
-    .pressKey('enter') //Checkbox
+    .pressKey('enter')
     .pressKey('tab')
-    .pressKey('enter') //radiobutton
+    .pressKey('enter')
     .pressKey('tab')
-    .pressKey('enter') //file upload
+    .pressKey('enter')
     .pressKey('tab')
-    .pressKey('enter') //date
+    .pressKey('enter')
     .pressKey('tab')
-    .pressKey('enter') //submit
+    .pressKey('enter');
   await designer.deleteUIComponentsMethod(t);
 });
 
-//Tests to commit and push changes to the gitea repo
 test('Sync an app with master', async () => {
-  var appName = config[environment].designerApp;
   await t
-    .navigateTo(app.baseUrl + "designer/" + appName + "#/about")
-    .click(designer.createNavigationTab)
-    .click(designer.pullChanges)
-  await t.eval(() => location.reload(true));
+    .navigateTo(app.baseUrl + 'designer/' + designerApp + '#/ui-editor')
+    .click(designer.pullChanges);
+  await t.eval(() => location.reload());
   await t
     .dragToElement(designer.inputComponent, designer.dragToArea)
     .click(designer.aboutNavigationTab)
-    .click(designer.createNavigationTab)
-    .expect(designer.pushChanges.exists).ok({ timeout: 120000 })
-    .click(designer.pushChanges)
-    .expect(designer.commitMessageBox.exists).ok({ timeout: 120000 })
-    .click(designer.commitMessageBox)
-    .typeText(designer.commitMessageBox, "Sync app automated test", { replace: true })
-    .expect(designer.validateChanges.exists).ok({ timeout: 120000 })
-    .click(designer.validateChanges)
-    .expect(designer.pushChangesBlueButton.exists).ok({ timeout: 120000 })
-    .click(designer.pushChangesBlueButton)
-    .expect(designer.noChanges.exists).ok({ timeout: 120000 })
+    .click(designer.createNavigationTab);
+  await designer.pushAndCommitChanges(t);
 });
 
-//Tests toverify the functionlaity inside the about page of an app
 test('About page items and editing', async () => {
-  const randNumOne = Math.floor(100 + Math.random() * 900);
   const randNumTwo = Math.floor(100 + Math.random() * 900);
   const randId = Math.floor(100000 + Math.random() * 900000);
-  var appName = config[environment].designerApp;
   await t
-    .navigateTo(app.baseUrl + "designer/" + appName + "#/ui-editor")
-    .click(designer.aboutNavigationTab)
+    .navigateTo(app.baseUrl + 'designer/' + designerApp + '#/about')
     .expect(designer.aboutAppName.focused).notOk()
     .click(designer.aboutAppName)
     .click(designer.aboutChangeAppName)
     .pressKey('ctrl+a')
     .pressKey('backspace')
     .typeText(designer.aboutAppName, 'autotest' + '_' + randNumTwo.toString())
-    .expect(designer.aboutAppName.getAttribute("value")).eql("autotest" + "_" + randNumTwo.toString())
-    .expect(designer.omLagringsNavn.getAttribute("value")).notContains(randNumTwo.toString())
+    .expect(designer.aboutAppName.getAttribute('value')).eql('autotest' + '_' + randNumTwo.toString())
+    .expect(designer.omLagringsNavn.getAttribute('value')).notContains(randNumTwo.toString())
     .pressKey('tab')
     .click(designer.aboutAppId)
     .pressKey('ctrl+a')
@@ -104,31 +84,28 @@ test('About page items and editing', async () => {
     .pressKey('ctrl+a')
     .pressKey('backspace')
     .typeText(designer.aboutComments, 'Lorem ipsum dolor sit amet.')
-    .expect(designer.aboutComments.textContent).contains("Lorem")
+    .expect(designer.aboutComments.textContent).contains('Lorem');
 });
 
-//Test to verify that an app cannot be cloned when it lacks datamodel
-test("User cannot clone an app that does not have a data model", async () => {
-  var appName = config[environment].withoutDataModelApp;
+test('Validation of missing datamodel in clone modal', async () => {
   await t
-    .navigateTo(app.baseUrl + "designer/" + appName + "#/ui-editor")
+    .navigateTo(app.baseUrl + 'designer/' + withoutDataModelApp + '#/ui-editor')
     .expect(designer.cloneButton.visible).ok()
     .click(designer.cloneButton)
     .expect(designer.dataModelMissing.visible).ok()
+    .expect(designer.dataModellLink.exists).ok()
     .click(designer.dataModellLink)
     .switchToIframe(designer.dataModelIFrame)
     .expect(designer.dataModelUpload.exists).ok()
-    .expect(designer.dataModelTabs.visible).notOk()
-})
+    .expect(designer.dataModelTabs.visible).notOk();
+});
 
 test('Configure and delete rules', async () => {
-  var appName = config[environment].rulesApp;
   await t
-    .navigateTo(app.baseUrl + "designer/" + appName + "#/ui-editor");
-  await t
+    .navigateTo(app.baseUrl + 'designer/' + rulesApp + '#/ui-editor')
     .expect(designer.connectRulesButton.exists).ok()
     .click(designer.connectRulesButton)
-    .expect(designer.rulesConnectionModal.exists).ok({ timeout: 10000 })
+    .expect(designer.rulesConnectionModal.exists).ok()
     .expect(designer.rulesDropDown.exists).ok()
     .click(designer.rulesDropDown)
     .expect(designer.rulesList.withAttribute('value', 'sum').exists).ok()
@@ -141,22 +118,18 @@ test('Configure and delete rules', async () => {
 });
 
 test('Links in App Logic menu', async () => {
-  var appName = config[environment].rulesApp;
   await t
-    .navigateTo(app.baseUrl + "designer/" + appName + "#/ui-editor");
-  await t    
+    .navigateTo(app.baseUrl + 'designer/' + rulesApp + '#/ui-editor')
     .expect(designer.editDynamic.exists).ok()
-    .expect(designer.editDynamic.visible).ok();    
+    .expect(designer.editDynamic.visible).ok();
 });
 
 test('Add and delete conditional rendering connections', async () => {
-  var appName = config[environment].rulesApp;
   await t
-    .navigateTo(app.baseUrl + "designer/" + appName + "#/ui-editor");
-  await t
+    .navigateTo(app.baseUrl + 'designer/' + rulesApp + '#/ui-editor')
     .expect(designer.connectConditionalRendering.exists).ok()
     .click(designer.connectConditionalRendering)
-    .expect(designer.renderingConnectionModal.exists).ok({ timeout: 10000 })
+    .expect(designer.renderingConnectionModal.exists).ok()
     .expect(designer.conditionalRulesDropDown.exists).ok()
     .click(designer.conditionalRulesDropDown)
     .click(designer.conditionalRulesList.withText('biggerThan10'))
@@ -168,55 +141,37 @@ test('Add and delete conditional rendering connections', async () => {
 });
 
 test('Clone modal functionality', async () => {
-  var appName = config[environment].designerApp;
   await t
-    .useRole(AutoTestUser)
-    .navigateTo(app.baseUrl + "designer/" + appName + "#/about")
-    .expect(designer.cloneButton.exists).ok({ timeout: 5000 })
+    .navigateTo(app.baseUrl + 'designer/' + designerApp + '#/about')
+    .expect(designer.cloneButton.exists).ok()
     .hover(designer.cloneButton)
     .click(designer.cloneButton)
     .expect(designer.readMoreAltinnDocs.exists).ok()
     .expect(designer.copyUrlRepoButton.exists).ok()
-    .click(designer.copyUrlRepoButton)
+    .click(designer.copyUrlRepoButton);
 });
 
-test('Validation of missing datamodel in clone modal', async () => {
-  var appName = config[environment].withoutDataModelApp;
-  await t
-    .useRole(AutoTestUser)
-    .navigateTo(app.baseUrl + "designer/" + appName + "#/ui-editor")
-    .expect(designer.cloneButton.exists).ok({ timeout: 5000 })
-    .hover(designer.cloneButton)
-    .click(designer.cloneButton)
-    .expect(designer.dataModellLink.exists).ok()
-    .click(designer.dataModellLink)
-});
-
-//Test to delete the local changes in stuido and reset the repo to the latest version from the repo
 test('Delete local app changes', async () => {
-  var appName = config[environment].designerApp;
   await t
-    .navigateTo(app.baseUrl + "designer/" + appName + "#/about")
+    .navigateTo(app.baseUrl + 'designer/' + designerApp + '#/about')
     .click(designer.createNavigationTab)
-    .click(designer.pullChanges)
-  await t.eval(() => location.reload(true));
-  appName = (appName.split('/'))[1];
+    .click(designer.pullChanges);
+  await t.eval(() => location.reload());
+  var appName = (designerApp.split('/'))[1];
   await t
     .dragToElement(designer.inputComponent, designer.dragToArea)
     .click(designer.aboutNavigationTab)
-    .expect(designer.pushChanges.exists).ok({ timeout: 120000 })
-    .expect(designer.deleteLocalChanges.exists).ok({ timeout: 120000 })
-    .expect(designer.deleteLocalChanges.hasAttribute('disabled')).notOk('Delete local changes button not enabled', { timeout: 120000 })
+    .expect(designer.pushChanges.exists).ok({ timeout: 60000 })
+    .expect(designer.deleteLocalChanges.exists).ok({ timeout: 60000 })
+    .expect(designer.deleteLocalChanges.hasAttribute('disabled')).notOk('Delete local changes button not enabled', { timeout: 60000 })
     .click(designer.deleteLocalChanges)
-    .expect(designer.deleteAppRepoName.exists).ok({ timeout: 120000 })
+    .expect(designer.deleteAppRepoName.exists).ok({ timeout: 60000 })
     .typeText(designer.deleteAppRepoName, appName, { replace: true })
-    .expect(designer.confirmDeleteLocalChanges.exists).ok({ timeout: 120000 })
-    .expect(designer.confirmDeleteLocalChanges.hasAttribute('disabled')).notOk('Confirm delete local changes button not enabled', { timeout: 120000 })
-    .click(designer.confirmDeleteLocalChanges)
-    .wait(4000);
+    .expect(designer.confirmDeleteLocalChanges.exists).ok({ timeout: 60000 })
+    .expect(designer.confirmDeleteLocalChanges.hasAttribute('disabled')).notOk('Confirm delete local changes button not enabled', { timeout: 60000 })
+    .click(designer.confirmDeleteLocalChanges);
 
-  await t.eval(() => location.reload(true));
+  await t.eval(() => location.reload());
   await t
-    .wait(5000)
-    .expect(designer.noChanges.exists).ok('Local changes are not deleted', { timeout: 120000 });
+    .expect(designer.noChanges.exists).ok('Local changes are not deleted', { timeout: 60000 });
 });

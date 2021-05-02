@@ -1,5 +1,6 @@
 // This file inhols baseURLs and endpoints for the APIs
 export var baseUrls = {
+    at21: "at21.altinn.cloud",
     at22: "at22.altinn.cloud",
     at23: "at23.altinn.cloud",
     at24: "at24.altinn.cloud",
@@ -68,7 +69,8 @@ export var platformStorage = {
 //Platform events
 export var platformEvents = {
     "events": "https://platform." + baseUrl + "/events/api/v1/app/",
-    "eventsByParty": "https://platform." + baseUrl + "/events/api/v1/app/party/"
+    "eventsByParty": "https://platform." + baseUrl + "/events/api/v1/app/party/",
+    "subscriptions": "https://platform." + baseUrl + "/events/api/v1/subscriptions"
 };
 
 //Function to build endpoints in storage with instanceOwnerId, instanceId, dataId, type
@@ -102,6 +104,9 @@ export function buildStorageUrls(instanceOwnerId, instanceId, dataId, type) {
             break;
         case "substatus":
             value = platformStorage["instances"] + "/" + instanceOwnerId + "/" + instanceId + "/substatus";
+            break;
+        case "presentationtexts":
+            value = `${platformStorage["instances"]}/${instanceOwnerId}/${instanceId}/presentationtexts`;
             break;
     };
     return value;
@@ -157,7 +162,9 @@ export var appResources = {
     "formlayout": "/api/resource/FormLayout.json",
     "rulehandler": "/api/resource/RuleHandler.js",
     "ruleconfiguration": "/api/resource/RuleConfiguration.json",
-    "texts": "/api/v1/texts/"
+    "texts": "/api/v1/texts/",
+    "jsonschema": "/api/jsonschema/",
+    "layoutsettings": "/api/layoutsettings"
 };
 
 //App Authorization

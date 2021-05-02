@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+
 using Altinn.App.Services.Models;
 
 using Newtonsoft.Json;
@@ -74,6 +75,11 @@ namespace Altinn.App.Services.Configuration
         /// Gets or sets the name of the layout setting file name
         /// </summary>
         public string FormLayoutSettingsFileName { get; set; } = "Settings.json";
+
+        /// <summary>
+        /// Gets or sets the name of the layoutsets file name
+        /// </summary>
+        public string LayoutSetsFileName { get; set; } = "layout-sets.json";
 
         /// <summary>
         /// Gets or sets The name of the rule configuration json file Name
@@ -177,5 +183,19 @@ namespace Altinn.App.Services.Configuration
         /// Gets or sets a value indicating whether the app should send events to the Events component.
         /// </summary>
         public bool RegisterEventsWithEventsComponent { get; set; } = false;
+
+        /// <summary>
+        /// Gets or sets a value indicating whether the eFormidlingIntegration should be enabled.
+        /// </summary>
+        public bool EnableEFormidling { get; set; } = false;
+
+        /// <summary>
+        /// Gets or sets the sender of the eFormidling shipment.
+        /// </summary>
+        /// <remarks>
+        /// If overriding for testing purposes, ensure to only update appsettings.Development.
+        /// Integration will not work if value is overrided in staging or prodution.
+        /// </remarks>
+        public string EFormidlingSender { get; set; } = "910075918";
     }
 }

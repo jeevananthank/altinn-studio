@@ -8,6 +8,7 @@ using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Threading.Tasks;
 
 namespace LocalTest.Services.Storage.Implementation
@@ -61,12 +62,17 @@ namespace LocalTest.Services.Storage.Implementation
             string path = GetInstancePath(instanceId.Replace("/","_"));
             if (File.Exists(path))
             {
-                string content = System.IO.File.ReadAllText(path);
+                string content = File.ReadAllText(path);
                 Instance instance = (Instance)JsonConvert.DeserializeObject(content, typeof(Instance));
                 await PostProcess(instance);
                 return instance;
             }
             return null;
+        }
+
+        public Task<InstanceQueryResponse> GetInstancesFromQuery(Dictionary<string, StringValues> queryParams, string continuationToken, int size)
+        {
+            throw new NotImplementedException();
         }
 
         public async Task<Instance> Update(Instance instance)
@@ -92,6 +98,7 @@ namespace LocalTest.Services.Storage.Implementation
         private void PreProcess(Instance instance)
         {
             instance.Id = InstanceIdToCosmosId(instance.Id);
+            instance.Data = new List<DataElement>();
         }
 
         private async Task PostProcess(Instance instance)
@@ -101,6 +108,11 @@ namespace LocalTest.Services.Storage.Implementation
 
             instance.Id = instanceId;
             instance.Data = await _dataRepository.ReadAll(instanceGuid);
+
+            if (instance.Data != null && instance.Data.Any())
+            {
+                SetReadStatus(instance);
+            }
 
             (string lastChangedBy, DateTime? lastChanged) = InstanceHelper.FindLastChanged(instance);
             instance.LastChanged = lastChanged;
@@ -124,6 +136,18 @@ namespace LocalTest.Services.Storage.Implementation
             }
 
             return cosmosId;
+        }
+
+        private void SetReadStatus(Instance instance)
+        {
+            if (instance.Status.ReadStatus == ReadStatus.Read && instance.Data.Any(d => !d.IsRead))
+            {
+                instance.Status.ReadStatus = ReadStatus.UpdatedSinceLastReview;
+            }
+            else if (instance.Status.ReadStatus == ReadStatus.Read && !instance.Data.Any(d => d.IsRead))
+            {
+                instance.Status.ReadStatus = ReadStatus.Unread;
+            }
         }
     }
 }

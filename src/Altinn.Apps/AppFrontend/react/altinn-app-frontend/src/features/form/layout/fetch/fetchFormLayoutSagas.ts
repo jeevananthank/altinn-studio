@@ -1,90 +1,125 @@
 import { SagaIterator } from 'redux-saga';
-import { call, all, take, select } from 'redux-saga/effects';
-import { IAltinnWindow } from 'altinn-shared/types';
-import { getLayoutSettingsUrl } from 'src/utils/urlHelper';
+import { call, all, put, take, select, takeLatest } from 'redux-saga/effects';
+import { IInstance } from 'altinn-shared/types';
+import { IApplicationMetadata } from 'src/shared/resources/applicationMetadata';
+import { getLayoutSettingsUrl, getLayoutSetsUrl, getLayoutsUrl } from 'src/utils/urlHelper';
 import { get } from '../../../../utils/networking';
-import Actions from '../formLayoutActions';
-import { IFetchFormLayout } from './fetchFormLayoutActions';
-import * as ActionTypes from '../formLayoutActionTypes';
-import * as FormDataActionTypes from '../../data/formDataActionTypes';
-import QueueActions from '../../../../shared/resources/queue/queueActions';
-import { getRepeatingGroups } from '../../../../utils/formLayout';
-import { ILayoutSettings, IRuntimeState } from '../../../../types';
-import { IFormDataState } from '../../data/formDataReducer';
-import { ILayoutComponent, ILayoutGroup, ILayouts } from '../index';
+import { FormLayoutActions as Actions } from '../formLayoutSlice';
+import FormDataActions from '../../data/formDataActions';
+import { dataTaskQueueError } from '../../../../shared/resources/queue/queueSlice';
+import { ILayoutSettings, IRuntimeState, ILayoutSets } from '../../../../types';
+import { ILayouts } from '../index';
+import { getLayoutsetForDataElement } from '../../../../utils/layout';
+import { getDataTaskDataTypeId } from '../../../../utils/appMetadata';
 
-const formDataSelector = (state: IRuntimeState) => state.formData;
+const layoutSetsSelector = (state: IRuntimeState) => state.formLayout.layoutsets;
+const instanceSelector = (state: IRuntimeState) => state.instanceData.instance;
+const applicationMetadataSelector = (state: IRuntimeState) => state.applicationMetadata.applicationMetadata;
 
-function* fetchFormLayoutSaga({ url }: IFetchFormLayout): SagaIterator {
+function* fetchLayoutSaga(): SagaIterator {
   try {
-    const layoutResponse: any = yield call(get, url);
+    const layoutSets: ILayoutSets = yield select(layoutSetsSelector);
+    const instance: IInstance = yield select(instanceSelector);
+    const aplicationMetadataState: IApplicationMetadata = yield select(applicationMetadataSelector);
+    const dataType: string = getDataTaskDataTypeId(instance.process.currentTask.elementId,
+      aplicationMetadataState.dataTypes);
+
+    let layoutSetId: string = null;
+    if (layoutSets != null) {
+      layoutSetId = getLayoutsetForDataElement(instance, dataType, layoutSets);
+    }
+    const layoutResponse: any = yield call(get, getLayoutsUrl(layoutSetId));
     const layouts: ILayouts = {};
     const navigationConfig: any = {};
     let autoSave: boolean;
     let firstLayoutKey: string;
-    let repeatingGroups = {};
-    const formDataState: IFormDataState = yield select(formDataSelector);
-
     if (layoutResponse.data) {
       layouts.FormLayout = layoutResponse.data.layout;
       firstLayoutKey = 'FormLayout';
       autoSave = layoutResponse.data.autoSave;
-      repeatingGroups = getRepeatingGroups(layouts[firstLayoutKey] as [ILayoutComponent|ILayoutGroup],
-        formDataState.formData);
     } else {
       const orderedLayoutKeys = Object.keys(layoutResponse).sort();
-      firstLayoutKey = orderedLayoutKeys[0];
+
+      // use instance id as cache key for current page
+      const currentViewCacheKey = instance.id;
+      yield put(Actions.setCurrentViewCacheKey({ key: currentViewCacheKey }));
+      firstLayoutKey = localStorage.getItem(currentViewCacheKey) || orderedLayoutKeys[0];
 
       orderedLayoutKeys.forEach((key) => {
         layouts[key] = layoutResponse[key].data.layout;
         navigationConfig[key] = layoutResponse[key].data.navigation;
         autoSave = layoutResponse[key].data.autoSave;
-        repeatingGroups = {
-          ...repeatingGroups,
-          ...getRepeatingGroups(layouts[key] as [ILayoutComponent|ILayoutGroup], formDataState.formData),
-        };
       });
     }
 
-    yield call(Actions.fetchFormLayoutFulfilled, layouts, navigationConfig);
-    yield call(Actions.updateAutoSave, autoSave);
-    yield call(Actions.updateRepeatingGroupsFulfilled, repeatingGroups);
-    yield call(Actions.updateCurrentView, firstLayoutKey);
-  } catch (err) {
-    yield call(Actions.fetchFormLayoutRejected, err);
-    yield call(QueueActions.dataTaskQueueError, err);
+    yield put(Actions.fetchLayoutFulfilled({ layouts, navigationConfig }));
+    yield put(Actions.updateAutoSave({ autoSave }));
+    yield put(Actions.updateCurrentView({ newView: firstLayoutKey, skipPageCaching: true }));
+  } catch (error) {
+    yield put(Actions.fetchLayoutRejected({ error }));
+    yield put(dataTaskQueueError({ error }));
   }
 }
 
 export function* watchFetchFormLayoutSaga(): SagaIterator {
-  yield all([
-    take(ActionTypes.FETCH_FORM_LAYOUT),
-    take(FormDataActionTypes.FETCH_FORM_DATA_INITIAL),
-    take(FormDataActionTypes.FETCH_FORM_DATA_FULFILLED),
-  ]);
-  const { org, app } = window as Window as IAltinnWindow;
-  const url = `${window.location.origin}/${org}/${app}/api/resource/FormLayout.json`;
-  yield call(fetchFormLayoutSaga, { url } as IFetchFormLayout);
+  while (true) {
+    yield all([
+      take(Actions.fetchLayout),
+      take(FormDataActions.fetchFormDataInitial),
+      take(FormDataActions.fetchFormDataFulfilled),
+      take(Actions.fetchLayoutSetsFulfilled),
+    ]);
+    yield call(fetchLayoutSaga);
+  }
 }
 
-export function* fetchFormLayoutSettingsSaga(): SagaIterator {
+export function* fetchLayoutSettingsSaga(): SagaIterator {
   try {
-    const settings: ILayoutSettings = yield call(get, getLayoutSettingsUrl());
-    yield call(Actions.fetchFormLayoutSettingsFulfilled, settings);
+    const layoutSets: ILayoutSets = yield select(layoutSetsSelector);
+    const instance: IInstance = yield select(instanceSelector);
+    const aplicationMetadataState: IApplicationMetadata = yield select(applicationMetadataSelector);
+    const dataType: string = getDataTaskDataTypeId(instance.process.currentTask.elementId,
+      aplicationMetadataState.dataTypes);
+    let layoutSetId: string = null;
+    if (layoutSets != null) {
+      layoutSetId = getLayoutsetForDataElement(instance, dataType, layoutSets);
+    }
+    const settings: ILayoutSettings = yield call(get, getLayoutSettingsUrl(layoutSetId));
+    yield put(Actions.fetchLayoutSettingsFulfilled({ settings }));
   } catch (error) {
     if (error?.response?.status === 404) {
       // We accept that the app does not have a settings.json as this is not default
-      yield call(Actions.fetchFormLayoutSettingsFulfilled, null);
+      yield put(Actions.fetchLayoutSettingsFulfilled({ settings: null }));
     } else {
-      yield call(Actions.fetchFormLayoutSettingsRejected, error);
+      yield put(Actions.fetchLayoutSettingsRejected({ error }));
     }
   }
 }
 
 export function* watchFetchFormLayoutSettingsSaga(): SagaIterator {
-  yield all([
-    take(ActionTypes.FETCH_FORM_LAYOUT_SETTINGS),
-    take(ActionTypes.FETCH_FORM_LAYOUT_FULFILLED),
-  ]);
-  yield call(fetchFormLayoutSettingsSaga);
+  while (true) {
+    yield all([
+      take(Actions.fetchLayoutSettings),
+      take(Actions.fetchLayoutFulfilled),
+    ]);
+    yield call(fetchLayoutSettingsSaga);
+  }
+}
+
+export function* fetchLayoutSetsSaga(): SagaIterator {
+  try {
+    const layoutSets: ILayoutSets = yield call(get, getLayoutSetsUrl());
+    yield put(Actions.fetchLayoutSetsFulfilled({ layoutSets }));
+  } catch (error) {
+    if (error?.response?.status === 404) {
+      // We accept that the app does not have a layout sets as this is not default
+      yield put(Actions.fetchLayoutSetsFulfilled({ layoutSets: null }));
+    } else {
+      yield put(Actions.fetchLayoutSetsRejected({ error }));
+    }
+  }
+}
+
+export function* watchFetchFormLayoutSetsSaga(): SagaIterator {
+  yield takeLatest(Actions.fetchLayoutSets, fetchLayoutSetsSaga);
 }

@@ -128,6 +128,7 @@ class Rule extends React.Component<IRuleComponentProps, any> {
               onChange={this.handleSelectedMethodChange}
               value={selectedMethod}
               className='custom-select a-custom-select'
+              style={{fontSize: '16px'}}
             >
               <option value={''}>{this.props.language.general.choose_method}
               </option>
@@ -244,7 +245,7 @@ const mapsStateToProps = (state: IAppState, props: any): any => {
     dataModelElements: state.appData.dataModel.model,
     ruleConnection: state.serviceConfigurations.ruleConnection,
     selectedFunction: props.selectedFunction,
-    language: state.appData.language.language,
+    language: state.appData.languageState.language,
   };
 };
 

@@ -93,7 +93,8 @@ namespace Altinn.Platform.Storage.UnitTest
             {
                 CurrentTask = new ProcessElementInfo
                 {
-                    ElementId = "FormFilling"
+                    ElementId = "Task_1",
+                    AltinnTaskType = "data"
                 }
             };
         }
@@ -111,7 +112,7 @@ namespace Altinn.Platform.Storage.UnitTest
             },
             Data = new List<DataElement>()
             {
-                new DataElement() { LastChangedBy= UserId_2, LastChanged = Convert.ToDateTime("2019-09-20T21:19:22.2135489Z") }
+                new DataElement() { LastChangedBy = UserId_2, LastChanged = Convert.ToDateTime("2019-09-20T21:19:22.2135489Z") }
             },
             LastChangedBy = UserId_1,
             LastChanged = Convert.ToDateTime("2019-08-20T21:19:22.2135489Z"),
@@ -201,7 +202,7 @@ namespace Altinn.Platform.Storage.UnitTest
             Created = Convert.ToDateTime("2019-08-20T19:19:21.7920255Z"),
             InstanceOwner = new InstanceOwner { PartyId = InstanceOwnerPartyId_1 },
             Status = new InstanceStatus
-            {
+            {                
             },
             LastChangedBy = UserId_1,
             LastChanged = Convert.ToDateTime("2019-08-20T19:19:22.2135489Z"),
@@ -210,7 +211,8 @@ namespace Altinn.Platform.Storage.UnitTest
             {
                 CurrentTask = new ProcessElementInfo
                 {
-                    ElementId = "Task_1"
+                    ElementId = "Task_1",
+                    AltinnTaskType = "data"
                 }
             }
         };

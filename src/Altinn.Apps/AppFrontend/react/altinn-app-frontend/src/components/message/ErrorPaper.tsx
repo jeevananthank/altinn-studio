@@ -11,10 +11,10 @@ const theme = createMuiTheme(AltinnAppTheme);
 const useStyles = makeStyles({
   paper: {
     backgroundColor: theme.altinnPalette.primary.redLight,
+    maxWidth: '330px',
   },
   grid: {
     padding: '12px',
-    maxWidth: '330px',
   },
 });
 
@@ -31,6 +31,7 @@ export default function ErrorPaper(props: IErrorPaperProps) {
         direction='row'
         justify='flex-start'
         className={classes.grid}
+        spacing={2}
       >
         <Grid
           item={true}

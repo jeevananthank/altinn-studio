@@ -32,6 +32,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+
 using Newtonsoft.Json;
 
 namespace Altinn.App.Api.Controllers
@@ -56,6 +57,7 @@ namespace Altinn.App.Api.Controllers
         private readonly IProcess _processService;
         private readonly IPDP _pdp;
         private readonly IEvents _eventsService;
+        private readonly IPrefill _prefillService;
 
         private readonly AppSettings _appSettings;
 
@@ -74,7 +76,8 @@ namespace Altinn.App.Api.Controllers
             IProcess processService,
             IPDP pdp,
             IEvents eventsService,
-            IOptions<AppSettings> appSettings)
+            IOptions<AppSettings> appSettings,
+            IPrefill prefillService)
         {
             _logger = logger;
             _instanceService = instanceService;
@@ -86,6 +89,7 @@ namespace Altinn.App.Api.Controllers
             _pdp = pdp;
             _eventsService = eventsService;
             _appSettings = appSettings.Value;
+            _prefillService = prefillService;
         }
 
         /// <summary>
@@ -96,6 +100,7 @@ namespace Altinn.App.Api.Controllers
         /// <param name="instanceOwnerPartyId">unique id of the party that is the owner of the instance</param>
         /// <param name="instanceGuid">unique id to identify the instance</param>
         /// <returns>the instance</returns>
+        [Authorize]
         [HttpGet("{instanceOwnerPartyId:int}/{instanceGuid:guid}")]
         [Produces("application/json")]
         [ProducesResponseType(typeof(Instance), StatusCodes.Status200OK)]
@@ -107,16 +112,11 @@ namespace Altinn.App.Api.Controllers
             [FromRoute] int instanceOwnerPartyId,
             [FromRoute] Guid instanceGuid)
         {
-            EnforcementResult enforcementResult = await AuthorizeAction(org, app, instanceOwnerPartyId, "read");
+            EnforcementResult enforcementResult = await AuthorizeAction(org, app, instanceOwnerPartyId, instanceGuid, "read");
 
             if (!enforcementResult.Authorized)
             {
-                if (enforcementResult.FailedObligations != null && enforcementResult.FailedObligations.Count > 0)
-                {
-                    return StatusCode((int)HttpStatusCode.Forbidden, enforcementResult.FailedObligations);
-                }
-
-                return StatusCode((int)HttpStatusCode.Forbidden);
+                return Forbidden(enforcementResult);
             }
 
             try
@@ -230,19 +230,24 @@ namespace Altinn.App.Api.Controllers
             }
             catch (Exception partyLookupException)
             {
+                if (partyLookupException is ServiceException)
+                {
+                    ServiceException sexp = partyLookupException as ServiceException;
+
+                    if (sexp.StatusCode.Equals(HttpStatusCode.Unauthorized))
+                    {
+                        return StatusCode((int)HttpStatusCode.Forbidden);
+                    }
+                }
+
                 return NotFound($"Cannot lookup party: {partyLookupException.Message}");
             }
 
-            EnforcementResult enforcementResult = await AuthorizeAction(org, app, party.PartyId, "instantiate");
+            EnforcementResult enforcementResult = await AuthorizeAction(org, app, party.PartyId, null, "instantiate");
 
             if (!enforcementResult.Authorized)
             {
-                if (enforcementResult.FailedObligations != null && enforcementResult.FailedObligations.Count > 0)
-                {
-                    return StatusCode((int)HttpStatusCode.Forbidden, enforcementResult.FailedObligations);
-                }
-
-                return StatusCode((int)HttpStatusCode.Forbidden);
+                return Forbidden(enforcementResult);
             }
 
             if (!InstantiationHelper.IsPartyAllowedToInstantiate(party, application.PartyTypesAllowed))
@@ -265,6 +270,14 @@ namespace Altinn.App.Api.Controllers
                 instanceTemplate.Process = null;
                 string startEvent = await _altinnApp.OnInstantiateGetStartEvent();
                 processResult = _processService.ProcessStartAndGotoNextTask(instanceTemplate, startEvent, User);
+
+                string userOrgClaim = User.GetOrg();
+
+                if (userOrgClaim == null || !org.Equals(userOrgClaim, StringComparison.InvariantCultureIgnoreCase))
+                {
+                    instanceTemplate.Status ??= new InstanceStatus();
+                    instanceTemplate.Status.ReadStatus = ReadStatus.Read;
+                }
 
                 // create the instance
                 instance = await _instanceService.CreateInstance(org, app, instanceTemplate);
@@ -412,17 +425,13 @@ namespace Altinn.App.Api.Controllers
 
             if (exception is PlatformHttpException platformHttpException)
             {
-                switch (platformHttpException.Response.StatusCode)
+                return platformHttpException.Response.StatusCode switch
                 {
-                    case HttpStatusCode.Forbidden:
-                        return Forbid();
-                    case HttpStatusCode.NotFound:
-                        return NotFound();
-                    case HttpStatusCode.Conflict:
-                        return Conflict();
-                    default:
-                        return StatusCode((int)platformHttpException.Response.StatusCode, platformHttpException.Message);
-                }
+                    HttpStatusCode.Forbidden => Forbid(),
+                    HttpStatusCode.NotFound => NotFound(),
+                    HttpStatusCode.Conflict => Conflict(),
+                    _ => StatusCode((int)platformHttpException.Response.StatusCode, platformHttpException.Message),
+                };
             }
 
             if (exception is ServiceException se)
@@ -433,10 +442,10 @@ namespace Altinn.App.Api.Controllers
             return StatusCode(500, $"{message}");
         }
 
-        private async Task<EnforcementResult> AuthorizeAction(string org, string app, int partyId, string action)
+        private async Task<EnforcementResult> AuthorizeAction(string org, string app, int partyId, Guid? instanceGuid, string action)
         {
             EnforcementResult enforcementResult = new EnforcementResult();
-            XacmlJsonRequestRoot request = DecisionHelper.CreateDecisionRequest(org, app, HttpContext.User, action, partyId, null);
+            XacmlJsonRequestRoot request = DecisionHelper.CreateDecisionRequest(org, app, HttpContext.User, action, partyId, instanceGuid);
             XacmlJsonResponse response = await _pdp.GetDecisionForRequest(request);
 
             if (response?.Response == null)
@@ -469,6 +478,11 @@ namespace Altinn.App.Api.Controllers
                         instanceOwner.PersonNumber = null;
                         instanceOwner.OrganisationNumber = party.OrgNumber;
                     }
+                }
+                catch (ServiceException)
+                {
+                    // Just rethrow service exception
+                    throw;
                 }
                 catch (Exception e)
                 {
@@ -543,6 +557,9 @@ namespace Altinn.App.Api.Controllers
                         throw new InvalidOperationException(deserializer.Error);
                     }
 
+                    await _prefillService.PrefillDataModel(instance.InstanceOwner.PartyId, part.Name, data);
+                    await _altinnApp.RunDataCreation(instance, data);
+
                     dataElement = await _dataService.InsertFormData(
                         data,
                         instanceGuid,
@@ -572,7 +589,7 @@ namespace Altinn.App.Api.Controllers
         /// </summary>
         /// <param name="reader">multipart reader object</param>
         /// <returns>the instance template or null if none is found</returns>
-        private async Task<Instance> ExtractInstanceTemplate(MultipartRequestReader reader)
+        private static async Task<Instance> ExtractInstanceTemplate(MultipartRequestReader reader)
         {
             Instance instanceTemplate = null;
 
@@ -610,6 +627,16 @@ namespace Altinn.App.Api.Controllers
                     _logger.LogWarning(exception, "Exception when sending event with the Events component.");
                 }
             }
+        }
+
+        private ActionResult Forbidden(EnforcementResult enforcementResult)
+        {
+            if (enforcementResult.FailedObligations != null && enforcementResult.FailedObligations.Count > 0)
+            {
+                return StatusCode((int)HttpStatusCode.Forbidden, enforcementResult.FailedObligations);
+            }
+
+            return StatusCode((int)HttpStatusCode.Forbidden);
         }
     }
 }

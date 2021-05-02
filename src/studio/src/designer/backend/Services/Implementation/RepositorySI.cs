@@ -6,7 +6,7 @@ using System.Text;
 using System.Threading.Tasks;
 using System.Xml;
 using System.Xml.Linq;
-using Altinn.Platform.Storage.Interface.Models;
+
 using Altinn.Studio.Designer.Configuration;
 using Altinn.Studio.Designer.Enums;
 using Altinn.Studio.Designer.Factories.ModelFactory;
@@ -15,13 +15,19 @@ using Altinn.Studio.Designer.Helpers.Extensions;
 using Altinn.Studio.Designer.ModelMetadatalModels;
 using Altinn.Studio.Designer.Models;
 using Altinn.Studio.Designer.Services.Interfaces;
+
 using LibGit2Sharp;
+
 using Manatee.Json.Schema;
+
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
+
+using PlatformStorageModels = Altinn.Platform.Storage.Interface.Models;
 
 namespace Altinn.Studio.Designer.Services.Implementation
 {
@@ -114,7 +120,7 @@ namespace Altinn.Studio.Designer.Services.Implementation
         public void CreateApplicationMetadata(string org, string app, string appTitle)
         {
             string developer = AuthenticationHelper.GetDeveloperUserName(_httpContextAccessor.HttpContext);
-            Application appMetadata = new Application
+            PlatformStorageModels.Application appMetadata = new PlatformStorageModels.Application
             {
                 Id = ApplicationHelper.GetFormattedApplicationId(org, app),
                 VersionId = null,
@@ -124,24 +130,15 @@ namespace Altinn.Studio.Designer.Services.Implementation
                 LastChanged = DateTime.UtcNow,
                 LastChangedBy = developer,
                 Title = new Dictionary<string, string> { { "nb", appTitle ?? app } },
-                DataTypes = new List<DataType>
+                DataTypes = new List<PlatformStorageModels.DataType>
                 {
-                    new DataType
-                    {
-                        Id = "default",
-                        AllowedContentTypes = new List<string>() { "application/xml" },
-                        AppLogic = new ApplicationLogic() { },
-                        TaskId = "Task_1",
-                        MaxCount = 1,
-                        MinCount = 1,
-                    },
-                    new DataType
+                    new PlatformStorageModels.DataType
                     {
                         Id = "ref-data-as-pdf",
                         AllowedContentTypes = new List<string>() { "application/pdf" },
                     }
                 },
-                PartyTypesAllowed = new PartyTypesAllowed()
+                PartyTypesAllowed = new PlatformStorageModels.PartyTypesAllowed()
             };
 
             string metadata = JsonConvert.SerializeObject(appMetadata, Newtonsoft.Json.Formatting.Indented);
@@ -152,7 +149,7 @@ namespace Altinn.Studio.Designer.Services.Implementation
         }
 
         /// <inheritdoc/>
-        public bool UpdateApplication(string org, string app, Application applicationMetadata)
+        public bool UpdateApplication(string org, string app, PlatformStorageModels.Application applicationMetadata)
         {
             try
             {
@@ -194,9 +191,9 @@ namespace Altinn.Studio.Designer.Services.Implementation
         {
             try
             {
-                DataType formMetadata = JsonConvert.DeserializeObject<DataType>(applicationMetadata);
+                PlatformStorageModels.DataType formMetadata = JsonConvert.DeserializeObject<PlatformStorageModels.DataType>(applicationMetadata);
                 formMetadata.TaskId = "Task_1";
-                Application existingApplicationMetadata = GetApplication(org, app);
+                PlatformStorageModels.Application existingApplicationMetadata = GetApplication(org, app);
                 existingApplicationMetadata.DataTypes.Add(formMetadata);
 
                 string metadataAsJson = JsonConvert.SerializeObject(existingApplicationMetadata, Newtonsoft.Json.Formatting.Indented);
@@ -219,7 +216,8 @@ namespace Altinn.Studio.Designer.Services.Implementation
             {
                 dynamic attachmentMetadata = JsonConvert.DeserializeObject(applicationMetadata);
                 string attachmentId = attachmentMetadata.GetValue("id").Value;
-                DataType applicationForm = new DataType();
+                PlatformStorageModels.Application existingApplicationMetadata = GetApplication(org, app);
+                PlatformStorageModels.DataType applicationForm = existingApplicationMetadata.DataTypes.FirstOrDefault(m => m.Id == attachmentId) ?? new PlatformStorageModels.DataType();
                 applicationForm.AllowedContentTypes = new List<string>();
 
                 if (!(attachmentMetadata.GetValue("fileType") == null))
@@ -255,11 +253,11 @@ namespace Altinn.Studio.Designer.Services.Implementation
         {
             try
             {
-                Application existingApplicationMetadata = GetApplication(org, app);
+                PlatformStorageModels.Application existingApplicationMetadata = GetApplication(org, app);
 
                 if (existingApplicationMetadata.DataTypes != null)
                 {
-                    DataType removeForm = existingApplicationMetadata.DataTypes.Find(m => m.Id == id);
+                    PlatformStorageModels.DataType removeForm = existingApplicationMetadata.DataTypes.Find(m => m.Id == id);
                     existingApplicationMetadata.DataTypes.Remove(removeForm);
                 }
 
@@ -298,7 +296,7 @@ namespace Altinn.Studio.Designer.Services.Implementation
         }
 
         /// <inheritdoc/>
-        public Application GetApplication(string org, string app)
+        public PlatformStorageModels.Application GetApplication(string org, string app)
         {
             string filedata = string.Empty;
             string filename = _settings.GetAppMetadataFilePath(org, app, AuthenticationHelper.GetDeveloperUserName(_httpContextAccessor.HttpContext));
@@ -309,7 +307,7 @@ namespace Altinn.Studio.Designer.Services.Implementation
                     filedata = File.ReadAllText(filename, Encoding.UTF8);
                 }
 
-                return JsonConvert.DeserializeObject<Application>(filedata);
+                return JsonConvert.DeserializeObject<PlatformStorageModels.Application>(filedata);
             }
             catch (Exception ex)
             {
@@ -361,6 +359,17 @@ namespace Altinn.Studio.Designer.Services.Implementation
         }
 
         /// <summary>
+        /// Returns the path to the app folder
+        /// </summary>
+        /// <param name="org">Unique identifier of the organisation responsible for the app.</param>
+        /// <param name="app">Application identifier which is unique within an organisation.</param>
+        /// <returns>A string containing the path</returns>
+        public string GetAppPath(string org, string app)
+        {
+            return _settings.GetServicePath(org, app, AuthenticationHelper.GetDeveloperUserName(_httpContextAccessor.HttpContext));
+        }
+
+        /// <summary>
         /// Get content of resource file
         /// </summary>
         /// <param name="org">Unique identifier of the organisation responsible for the app.</param>
@@ -385,34 +394,40 @@ namespace Altinn.Studio.Designer.Services.Implementation
         /// </summary>
         /// <param name="org">Unique identifier of the organisation responsible for the app.</param>
         /// <param name="app">Application identifier which is unique within an organisation.</param>
-        /// <returns>The text</returns>
-        public Dictionary<string, Dictionary<string, string>> GetServiceTexts(string org, string app)
+        /// <remarks>
+        /// Format of the dictionary is: &lt;textResourceElementId &lt;language, textResourceElement&gt;&gt;
+        /// </remarks>
+        /// <returns>The texts in a dictionary</returns>
+        public Dictionary<string, Dictionary<string, TextResourceElement>> GetServiceTexts(string org, string app)
         {
-            Dictionary<string, Dictionary<string, string>> appTextsAllLanguages =
-                new Dictionary<string, Dictionary<string, string>>();
+            Dictionary<string, Dictionary<string, TextResourceElement>> appTextsAllLanguages =
+                new Dictionary<string, Dictionary<string, TextResourceElement>>();
 
             // Get app level text resources
             string resourcePath = _settings.GetLanguageResourcePath(org, app, AuthenticationHelper.GetDeveloperUserName(_httpContextAccessor.HttpContext));
-            appTextsAllLanguages = GetResourceTexts(resourcePath, appTextsAllLanguages);
+            appTextsAllLanguages = MergeResourceTexts(resourcePath, appTextsAllLanguages);
 
             // Get Org level text resources
             string orgResourcePath = _settings.GetOrgTextResourcePath(org, AuthenticationHelper.GetDeveloperUserName(_httpContextAccessor.HttpContext));
-            appTextsAllLanguages = GetResourceTexts(orgResourcePath, appTextsAllLanguages);
+            appTextsAllLanguages = MergeResourceTexts(orgResourcePath, appTextsAllLanguages);
 
             // Get Altinn common level text resources
             string commonResourcePath = _settings.GetCommonTextResourcePath(AuthenticationHelper.GetDeveloperUserName(_httpContextAccessor.HttpContext));
-            appTextsAllLanguages = GetResourceTexts(commonResourcePath, appTextsAllLanguages);
+            appTextsAllLanguages = MergeResourceTexts(commonResourcePath, appTextsAllLanguages);
 
             return appTextsAllLanguages;
         }
 
         /// <summary>
-        /// retrieves resource text for the given path
+        /// Merges the provided resource texts with the resource text in the the given path
         /// </summary>
         /// <param name="path">path for the resource files</param>
         /// <param name="resourceTexts">resource text dictionary</param>
+        /// <remarks>
+        /// Format of the dictionary is: &lt;textResourceElementId &lt;language, textResourceElement&gt;&gt;
+        /// </remarks>
         /// <returns>resource texts</returns>
-        private Dictionary<string, Dictionary<string, string>> GetResourceTexts(string path, Dictionary<string, Dictionary<string, string>> resourceTexts)
+        private static Dictionary<string, Dictionary<string, TextResourceElement>> MergeResourceTexts(string path, Dictionary<string, Dictionary<string, TextResourceElement>> resourceTexts)
         {
             if (Directory.Exists(path))
             {
@@ -424,23 +439,25 @@ namespace Altinn.Studio.Designer.Services.Implementation
                     string[] nameParts = fileName.Split('.');
                     if (nameParts.Length == 3 && nameParts[0] == "resource" && nameParts[2] == "json")
                     {
-                        JObject resourceFile = JObject.Parse(File.ReadAllText(directoryFile));
-                        string culture = (string)resourceFile["language"];
-                        foreach (JObject resource in resourceFile["resources"])
+                        string content = File.ReadAllText(directoryFile);
+                        TextResource r = JsonConvert.DeserializeObject<TextResource>(content);
+                        string culture = r.Language;
+
+                        foreach (TextResourceElement resource in r.Resources)
                         {
-                            string key = (string)resource["id"];
-                            string value = (string)resource["value"];
+                            string key = resource.Id;
+                            string value = resource.Value;
 
                             if (key != null && value != null)
                             {
                                 if (!resourceTexts.ContainsKey(key))
                                 {
-                                    resourceTexts.Add(key, new Dictionary<string, string>());
+                                    resourceTexts.Add(key, new Dictionary<string, TextResourceElement>());
                                 }
 
                                 if (!resourceTexts[key].ContainsKey(culture))
                                 {
-                                    resourceTexts[key].Add(culture, value);
+                                    resourceTexts[key].Add(culture, resource);
                                 }
                             }
                         }
@@ -484,49 +501,47 @@ namespace Altinn.Studio.Designer.Services.Implementation
         /// <param name="org">Unique identifier of the organisation responsible for the app.</param>
         /// <param name="app">Application identifier which is unique within an organisation.</param>
         /// <param name="texts">The texts to be saved</param>
-        public void SaveServiceTexts(string org, string app, Dictionary<string, Dictionary<string, string>> texts)
+        public void SaveServiceTexts(string org, string app, Dictionary<string, Dictionary<string, TextResourceElement>> texts)
         {
-            // Language, key, value
-            Dictionary<string, Dictionary<string, JObject>> resourceTextsAsJson =
-                new Dictionary<string, Dictionary<string, JObject>>();
+            // Language, key, TextResourceElement
+            Dictionary<string, Dictionary<string, TextResourceElement>> resourceTexts =
+                new Dictionary<string, Dictionary<string, TextResourceElement>>();
 
-            foreach (KeyValuePair<string, Dictionary<string, string>> text in texts)
+            foreach (KeyValuePair<string, Dictionary<string, TextResourceElement>> text in texts)
             {
-                foreach (KeyValuePair<string, string> localizedText in text.Value)
+                string textResourceElementId = text.Key;
+                foreach (KeyValuePair<string, TextResourceElement> localizedText in text.Value)
                 {
-                    if (!resourceTextsAsJson.ContainsKey(localizedText.Key))
+                    string language = localizedText.Key;
+                    TextResourceElement tre = localizedText.Value;
+                    if (!resourceTexts.ContainsKey(language))
                     {
-                        resourceTextsAsJson.Add(localizedText.Key, new Dictionary<string, JObject>());
+                        resourceTexts.Add(language, new Dictionary<string, TextResourceElement>());
                     }
 
-                    if (!resourceTextsAsJson[localizedText.Key].ContainsKey(text.Key))
+                    if (!resourceTexts[language].ContainsKey(textResourceElementId))
                     {
-                        dynamic textObject = new JObject
-                        {
-                            new JProperty("id", text.Key),
-                            new JProperty("value", localizedText.Value),
-                        };
-                        resourceTextsAsJson[localizedText.Key].Add(text.Key, textObject);
+                        resourceTexts[language].Add(textResourceElementId, new TextResourceElement { Id = textResourceElementId, Value = tre.Value, Variables = tre.Variables });
                     }
                 }
             }
 
             string resourcePath = _settings.GetLanguageResourcePath(org, app, AuthenticationHelper.GetDeveloperUserName(_httpContextAccessor.HttpContext));
 
-            foreach (KeyValuePair<string, Dictionary<string, JObject>> processedResource in resourceTextsAsJson)
+            // loop through each language set of text resources
+            foreach (KeyValuePair<string, Dictionary<string, TextResourceElement>> processedResource in resourceTexts)
             {
-                JObject resourceObject = new JObject();
-                string language = processedResource.Key;
-                resourceObject.Add(new JProperty("language", language));
-                JArray textsArray = new JArray();
+                TextResource tr = new TextResource();
+                tr.Language = processedResource.Key;
+                tr.Resources = new List<TextResourceElement>();
 
-                foreach (KeyValuePair<string, JObject> actualResource in processedResource.Value)
+                foreach (KeyValuePair<string, TextResourceElement> actualResource in processedResource.Value)
                 {
-                    textsArray.Add(actualResource.Value);
+                    tr.Resources.Add(actualResource.Value);
                 }
 
-                resourceObject.Add("resources", textsArray);
-                File.WriteAllText(resourcePath + $"/resource.{processedResource.Key}.json", resourceObject.ToString());
+                string resourceString = JsonConvert.SerializeObject(tr, new JsonSerializerSettings { Formatting = Newtonsoft.Json.Formatting.Indented, NullValueHandling = NullValueHandling.Ignore });
+                File.WriteAllText(resourcePath + $"/resource.{processedResource.Key}.json", resourceString);
             }
         }
 
@@ -569,7 +584,7 @@ namespace Altinn.Studio.Designer.Services.Implementation
 
             return filedata;
         }
-        
+
         /// <inheritdoc/>
         public string GetJsonFormLayouts(string org, string app)
         {
@@ -583,7 +598,7 @@ namespace Altinn.Studio.Designer.Services.Implementation
             {
                 filedata = File.ReadAllText(formLayoutPath, Encoding.UTF8);
                 DeleteOldFormLayoutJson(org, app, developer);
-                SaveFormLayout(org, app, "FormLayout",  filedata);
+                SaveFormLayout(org, app, "FormLayout", filedata);
             }
 
             string formLayoutsPath = _settings.GetFormLayoutsPath(org, app, developer);
@@ -695,10 +710,10 @@ namespace Altinn.Studio.Designer.Services.Implementation
             File.WriteAllText(filePath, content, Encoding.UTF8);
             return true;
         }
-        
+
         /// <inheritdoc />
         public bool UpdateFormLayoutName(string org, string app, string currentName, string newName)
-        {   
+        {
             string developer = AuthenticationHelper.GetDeveloperUserName(_httpContextAccessor.HttpContext);
             string curFilePath = _settings.GetFormLayoutPath(org, app, developer, currentName);
             string newFilePath = _settings.GetFormLayoutPath(org, app, developer, newName);
@@ -724,7 +739,7 @@ namespace Altinn.Studio.Designer.Services.Implementation
 
             return deleted;
         }
-        
+
         /// <inheritdoc />
         public bool SaveLayoutSettings(string org, string app, string setting)
         {
@@ -779,6 +794,54 @@ namespace Altinn.Studio.Designer.Services.Implementation
             return true;
         }
 
+        /// <inheritdoc/>
+        public string GetWidgetSettings(string org, string app)
+        {
+            string filePath = _settings.GetWidgetSettingsPath(org, app, AuthenticationHelper.GetDeveloperUserName(_httpContextAccessor.HttpContext));
+            string fileData = null;
+            if (File.Exists(filePath))
+            {
+                fileData = File.ReadAllText(filePath, Encoding.UTF8);
+            }
+
+            return fileData;
+        }
+
+        /// <inheritdoc/>
+        public bool AddTextResources(string org, string app, List<TextResource> textResourcesList)
+        {
+            foreach (TextResource textResource in textResourcesList)
+            {
+                var currentResourceString = GetLanguageResource(org, app, textResource.Language);
+                TextResource currentTextResource = JsonConvert.DeserializeObject<TextResource>(currentResourceString);
+                var duplicateResources = textResource.Resources.FindAll(resource => currentTextResource.Resources.Find(r => r.Id == resource.Id) != null);
+                if (duplicateResources.Count == 0)
+                {
+                    currentTextResource.Resources.AddRange(textResource.Resources);
+                }
+                else
+                {
+                    textResource.Resources.ForEach(resource =>
+                    {
+                        if (duplicateResources.Find(duplicate => duplicate.Id == resource.Id) != null)
+                        {
+                            var duplicate = currentTextResource.Resources.Find(r => r.Id == resource.Id);
+                            duplicate.Value = resource.Value;
+                            duplicate.Variables = resource.Variables;
+                        }
+                        else
+                        {
+                            currentTextResource.Resources.Add(resource);
+                        }
+                    });
+                }
+
+                SaveLanguageResource(org, app, textResource.Language, JsonConvert.SerializeObject(currentTextResource));
+            }
+
+            return true;
+        }
+
         /// <summary>
         /// Save the JSON file to disk
         /// </summary>
@@ -811,32 +874,6 @@ namespace Altinn.Studio.Designer.Services.Implementation
             File.WriteAllText(filePath, resource, Encoding.UTF8);
 
             return true;
-        }
-
-        /// <summary>
-        /// Gets the raw content of a code list
-        /// </summary>
-        /// <param name="org">Unique identifier of the organisation responsible for the app.</param>
-        /// <param name="app">Application identifier which is unique within an organisation.</param>
-        /// <param name="name">The name of the code list to retrieve</param>
-        /// <returns>Raw contents of a code list file</returns>
-        public string GetCodelist(string org, string app, string name)
-        {
-            try
-            {
-                Dictionary<string, string> allCodelists = GetCodelists(org, app);
-
-                if (!allCodelists.ContainsKey(name))
-                {
-                    return null;
-                }
-
-                return allCodelists[name];
-            }
-            catch
-            {
-                return null;
-            }
         }
 
         /// <summary>
@@ -989,28 +1026,38 @@ namespace Altinn.Studio.Designer.Services.Implementation
         }
 
         /// <summary>
-        ///  This logic is limited to having one datamodel per app. Needs to be updated for expanded functionality
+        ///  Updates application model with new app logic model
         /// </summary>
         /// <param name="org">The org</param>
         /// <param name="app">The app</param>
         /// <param name="dataTypeId">The dataTypeId for the new app logic datamodel</param>
         /// <param name="classRef">The class ref</param>
-        /// <returns></returns>
-        private bool UpdateApplicationWithAppLogicModel(string org, string app, string dataTypeId, string classRef)
+        public void UpdateApplicationWithAppLogicModel(string org, string app, string dataTypeId, string classRef)
         {
-            Application application = GetApplication(org, app);
+            PlatformStorageModels.Application application = GetApplication(org, app);
             if (application.DataTypes == null)
             {
-                application.DataTypes = new List<DataType>();
+                application.DataTypes = new List<PlatformStorageModels.DataType>();
             }
 
-            DataType logicElement = application.DataTypes.Single(d => d.AppLogic != null);
+            PlatformStorageModels.DataType existingLogicElement = application.DataTypes.FirstOrDefault((d) => d.AppLogic != null);
+            PlatformStorageModels.DataType logicElement = application.DataTypes.SingleOrDefault(d => d.Id == dataTypeId);
+            
+            if (logicElement == null)
+            {
+                logicElement = new PlatformStorageModels.DataType
+                {
+                    Id = dataTypeId,
+                    TaskId = existingLogicElement == null ? "Task_1" : null,
+                    AllowedContentTypes = new List<string>() { "application/xml" },
+                    MaxCount = 1,
+                    MinCount = 1,
+                };
+                application.DataTypes.Add(logicElement);
+            }
 
-            logicElement.Id = dataTypeId;
-            logicElement.AppLogic = new ApplicationLogic { AutoCreate = true, ClassRef = classRef };
+            logicElement.AppLogic = new PlatformStorageModels.ApplicationLogic { AutoCreate = true, ClassRef = classRef };
             UpdateApplication(org, app, application);
-
-            return true;
         }
 
         /// <summary>
@@ -1230,55 +1277,6 @@ namespace Altinn.Studio.Designer.Services.Implementation
         }
 
         /// <summary>
-        /// Create and clone the organisation's code list
-        /// </summary>
-        /// <param name="org">Unique identifier of the organisation responsible for the app.</param>
-        public void CreateAndCloneOrgCodeLists(string org)
-        {
-            org = org.AsFileName();
-
-            try
-            {
-                string localOrgRepoFolder =
-                    (Environment.GetEnvironmentVariable("ServiceRepositorySettings__RepositoryLocation") != null)
-                    ? $"{Environment.GetEnvironmentVariable("ServiceRepositorySettings__RepositoryLocation")}{AuthenticationHelper.GetDeveloperUserName(_httpContextAccessor.HttpContext)}/{org}/codelists"
-                    : $"{_settings.RepositoryLocation}{AuthenticationHelper.GetDeveloperUserName(_httpContextAccessor.HttpContext)}/{org}/codelists";
-
-                using (LibGit2Sharp.Repository repo = new LibGit2Sharp.Repository(localOrgRepoFolder))
-                {
-                    // User has a local repo for codelist.
-                    return;
-                }
-            }
-            catch (RepositoryNotFoundException)
-            {
-                // Happens when developer has not cloned org repo
-            }
-
-            // First verify if there exist a remote repo
-            try
-            {
-                _sourceControl.CloneRemoteRepository(org, Constants.General.CodeListRepository);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError("Unable to verify if there exist a remote repo for codelist", ex);
-            }
-
-            var options = new RepositoryClient.Model.CreateRepoOption(Constants.General.CodeListRepository, readme: "Kodelister", description: "Dette er repository for kodelister for " + org);
-            CreateRepository(org, options);
-
-            try
-            {
-                _sourceControl.CloneRemoteRepository(org, Constants.General.CodeListRepository);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError("Unable to clone remote repo for codelist", ex);
-            }
-        }
-
-        /// <summary>
         /// create a repository in gitea for the given org and options
         /// </summary>
         /// <param name="org">Unique identifier of the organisation responsible for the app.</param>
@@ -1287,125 +1285,6 @@ namespace Altinn.Studio.Designer.Services.Implementation
         public async Task<RepositoryClient.Model.Repository> CreateRepository(string org, Altinn.Studio.Designer.RepositoryClient.Model.CreateRepoOption options)
         {
             return await _gitea.CreateRepository(org, options);
-        }
-
-        /// <summary>
-        /// Gets all code lists at org or app level
-        /// </summary>
-        /// <param name="org">Unique identifier of the organisation responsible for the app.</param>
-        /// <param name="app">Application identifier which is unique within an organisation.</param>
-        /// <returns>All code lists at the given location</returns>
-        public Dictionary<string, string> GetCodelists(string org, string app)
-        {
-            org = org.AsFileName();
-            app = app.AsFileName();
-
-            CreateAndCloneOrgCodeLists(org);
-
-            Dictionary<string, string> codelists = new Dictionary<string, string>();
-            string codelistDirectoryPath = null;
-            codelistDirectoryPath = (Environment.GetEnvironmentVariable("ServiceRepositorySettings__RepositoryLocation") != null)
-                ? $"{Environment.GetEnvironmentVariable("ServiceRepositorySettings__RepositoryLocation")}{AuthenticationHelper.GetDeveloperUserName(_httpContextAccessor.HttpContext)}/{org}"
-                : $"{_settings.RepositoryLocation}{AuthenticationHelper.GetDeveloperUserName(_httpContextAccessor.HttpContext)}/{org}";
-
-            if (!string.IsNullOrEmpty(app))
-            {
-                codelistDirectoryPath += "/" + app;
-            }
-
-            codelistDirectoryPath += "/codelists/";
-
-            if (!Directory.Exists(codelistDirectoryPath))
-            {
-                return codelists;
-            }
-
-            string[] directoryFiles = Directory.GetFiles(codelistDirectoryPath);
-            foreach (string directoryFile in directoryFiles)
-            {
-                string fileName = Path.GetFileName(directoryFile);
-                string codelistName = fileName.Substring(0, fileName.IndexOf('.'));
-
-                string codelistContents = File.ReadAllText(directoryFile);
-
-                codelists.Add(codelistName, codelistContents);
-            }
-
-            return codelists;
-        }
-
-        /// <summary>
-        /// Method that stores code list to disk
-        /// </summary>
-        /// <param name="org">Unique identifier of the organisation responsible for the app.</param>
-        /// <param name="app">Application identifier which is unique within an organisation.</param>
-        /// <param name="name">The name on config</param>
-        /// <param name="codelist">The content</param>
-        /// <returns>A boolean indicating if the code list was successfully saved</returns>
-        public bool SaveCodeList(string org, string app, string name, string codelist)
-        {
-            org = org.AsFileName();
-            app = app.AsFileName();
-            name = name.AsFileName();
-
-            try
-            {
-                string filePath =
-                    (Environment.GetEnvironmentVariable("ServiceRepositorySettings__RepositoryLocation") != null)
-                    ? $"{Environment.GetEnvironmentVariable("ServiceRepositorySettings__RepositoryLocation")}{AuthenticationHelper.GetDeveloperUserName(_httpContextAccessor.HttpContext)}/{org}"
-                    : $"{_settings.RepositoryLocation}{AuthenticationHelper.GetDeveloperUserName(_httpContextAccessor.HttpContext)}/{org}";
-
-                if (!string.IsNullOrEmpty(app))
-                {
-                    filePath += "/" + app;
-                }
-
-                filePath += $"/codelists/{name}.json";
-
-                new FileInfo(filePath).Directory.Create();
-                File.WriteAllText(filePath, codelist, Encoding.UTF8);
-            }
-            catch
-            {
-                return false;
-            }
-
-            return true;
-        }
-
-        /// <summary>
-        /// Method that deletes a code list from disk
-        /// </summary>
-        /// <param name="org">Unique identifier of the organisation responsible for the app.</param>
-        /// <param name="app">Application identifier which is unique within an organisation.</param>
-        /// <param name="name">The name on config</param>
-        /// <returns>A boolean indicating if the Code List was deleted</returns>
-        public bool DeleteCodeList(string org, string app, string name)
-        {
-            org = org.AsFileName();
-            app = app.AsFileName();
-            name = name.AsFileName();
-
-            try
-            {
-                string filePath = (Environment.GetEnvironmentVariable("ServiceRepositorySettings__RepositoryLocation") != null)
-                ? $"{Environment.GetEnvironmentVariable("ServiceRepositorySettings__RepositoryLocation")}{AuthenticationHelper.GetDeveloperUserName(_httpContextAccessor.HttpContext)}/{org}"
-                : $"{_settings.RepositoryLocation}{AuthenticationHelper.GetDeveloperUserName(_httpContextAccessor.HttpContext)}/{org}";
-
-                if (!string.IsNullOrEmpty(app))
-                {
-                    filePath += "/" + app;
-                }
-
-                filePath += $"/codelists/{name}.json";
-                File.Delete(filePath);
-            }
-            catch (Exception)
-            {
-                return false;
-            }
-
-            return true;
         }
 
         /// <summary>
@@ -1711,7 +1590,7 @@ namespace Altinn.Studio.Designer.Services.Implementation
         {
             try
             {
-                Application existingApplicationMetadata = GetApplication(org, app);
+                PlatformStorageModels.Application existingApplicationMetadata = GetApplication(org, app);
 
                 if (existingApplicationMetadata.Title == null)
                 {
@@ -1743,7 +1622,7 @@ namespace Altinn.Studio.Designer.Services.Implementation
         /// <inheritdoc/>
         public bool UpdateAppTitle(string org, string app, string languageId, string newTitle)
         {
-            Application appMetadata = GetApplication(org, app);
+            PlatformStorageModels.Application appMetadata = GetApplication(org, app);
 
             if (appMetadata == null)
             {
@@ -1975,10 +1854,10 @@ namespace Altinn.Studio.Designer.Services.Implementation
 
         private string GetModelName(string org, string app)
         {
-            Application application = GetApplication(org, app);
+            PlatformStorageModels.Application application = GetApplication(org, app);
 
             string dataTypeId = string.Empty;
-            foreach (DataType data in application.DataTypes)
+            foreach (PlatformStorageModels.DataType data in application.DataTypes)
             {
                 if (data.AppLogic != null && !string.IsNullOrEmpty(data.AppLogic.ClassRef))
                 {

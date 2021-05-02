@@ -1,19 +1,17 @@
 import { SagaIterator } from 'redux-saga';
-import { all, call, select, takeLatest } from 'redux-saga/effects';
+import { all, call, put, select, takeLatest } from 'redux-saga/effects';
 import { IRuntimeState } from '../../../../types';
 import { checkIfRuleShouldRun } from '../../../../utils/rules';
 import FormDataActions from '../../data/formDataActions';
 import { IFormData } from '../../data/formDataReducer';
-import { IDataModelState } from '../../datamodel/formDatamodelReducer';
 import { IRuleConnections } from '../../dynamics';
-import { ILayoutState } from '../../layout/formLayoutReducer';
+import { ILayoutState } from '../../layout/formLayoutSlice';
 import * as RuleActions from './checkRulesActions';
 import * as ActionTypes from '../rulesActionTypes';
 
 const selectRuleConnection = (state: IRuntimeState): IRuleConnections => state.formDynamics.ruleConnection;
 const selectFormDataConnection = (state: IRuntimeState): IFormData => state.formData;
 const selectFormLayoutConnection = (state: IRuntimeState): ILayoutState => state.formLayout;
-const selectFormdataModelConnection = (state: IRuntimeState): IDataModelState => state.formDataModel;
 
 export interface IResponse {
   ruleShouldRun: boolean;
@@ -24,22 +22,18 @@ export interface IResponse {
 
 function* checkIfRuleShouldRunSaga({
   lastUpdatedDataBinding,
-  repeatingContainerId,
 }: RuleActions.ICheckIfRuleShouldRun): SagaIterator {
   try {
     const ruleConnectionState: IRuleConnections = yield select(selectRuleConnection);
     const formDataState: IFormData = yield select(selectFormDataConnection);
     const formLayoutState: ILayoutState = yield select(selectFormLayoutConnection);
-    const formDataModelState: IDataModelState = yield select(selectFormdataModelConnection);
 
     // const currentLayout = formLayoutState.layouts[formLayoutState.uiConfig.currentView];
 
     const rules: IResponse[] = checkIfRuleShouldRun(
       ruleConnectionState,
       formDataState,
-      formDataModelState,
       formLayoutState.layouts,
-      repeatingContainerId,
       lastUpdatedDataBinding,
     );
 
@@ -51,7 +45,11 @@ function* checkIfRuleShouldRunSaga({
         }
 
         // eslint-disable-next-line consistent-return
-        return call(FormDataActions.updateFormData, rule.dataBindingName, rule.result, rule.componentId);
+        return put(FormDataActions.updateFormData({
+          componentId: rule.componentId,
+          data: rule.result,
+          field: rule.dataBindingName,
+        }));
       }));
     }
   } catch (err) {

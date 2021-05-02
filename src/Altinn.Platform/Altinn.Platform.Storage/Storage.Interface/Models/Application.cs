@@ -71,6 +71,32 @@ namespace Altinn.Platform.Storage.Interface.Models
         [JsonProperty(PropertyName = "autoDeleteOnProcessEnd")]
         public bool AutoDeleteOnProcessEnd { get; set; }
 
+        /// <summary>
+        /// Gets or sets the presentation fields of the application.
+        /// </summary>
+        [JsonProperty(PropertyName = "presentationFields")]
+        public List<DataField> PresentationFields { get; set; }
+
+        /// <summary>
+        /// Gets or sets the data fields of the application.
+        /// The data for fields specified here will automatically be copied and populated on the <see cref="Instance"/> model as data values,
+        /// making them easily available for routing or other needs without having to load the entire data set.
+        /// </summary>
+        [JsonProperty(PropertyName = "dataFields")]
+        public List<DataField> DataFields { get; set; }
+
+        /// <summary>
+        /// Gets or sets the definition of eFormidling shipments related to the app.
+        /// </summary>
+        [JsonProperty(PropertyName = "eFormidling")]
+        public EFormidlingContract EFormidling { get; set; }
+
+        /// <summary>
+        /// Gets or sets the "on entry" configuration of the app.
+        /// </summary>
+        [JsonProperty(PropertyName = "onEntry")]
+        public OnEntryConfig OnEntry { get; set; }
+
         /// <inheritdoc/>
         public override string ToString()
         {

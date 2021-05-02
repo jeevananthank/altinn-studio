@@ -1,13 +1,18 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Net;
+using System.Net.Http.Headers;
 using System.Security.Claims;
+using System.Text.Json;
 using System.Threading.Tasks;
 
 using Altinn.App.Api.Filters;
 using Altinn.App.Common.Constants;
 using Altinn.App.Common.Helpers;
+using Altinn.App.Common.Helpers.Extensions;
+using Altinn.App.Common.Models;
 using Altinn.App.Common.Serialization;
 using Altinn.App.PlatformServices.Extensions;
 using Altinn.App.PlatformServices.Helpers;
@@ -180,7 +185,7 @@ namespace Altinn.App.Api.Controllers
 
                 string dataType = dataElement.DataType;
 
-                bool? appLogic = RequiresAppLogic(org, app, dataType);
+                bool? appLogic = RequiresAppLogic(dataType);
 
                 if (appLogic == null)
                 {
@@ -209,12 +214,13 @@ namespace Altinn.App.Api.Controllers
         /// <param name="instanceOwnerPartyId">unique id of the party that is the owner of the instance</param>
         /// <param name="instanceGuid">unique id to identify the instance</param>
         /// <param name="dataGuid">unique id to identify the data element to update</param>
-        /// <returns>The updated data element.</returns>
+        /// <returns>The updated data element, including the changed fields in the event of a calculation that changed data.</returns>
         [Authorize(Policy = AuthzConstants.POLICY_INSTANCE_WRITE)]
         [HttpPut("{dataGuid:guid}")]
         [DisableFormValueModelBinding]
         [RequestSizeLimit(REQUEST_SIZE_LIMIT)]
         [ProducesResponseType(typeof(DataElement), 201)]
+        [ProducesResponseType(typeof(CalculationResult), 303)]
         public async Task<ActionResult> Put(
             [FromRoute] string org,
             [FromRoute] string app,
@@ -240,7 +246,7 @@ namespace Altinn.App.Api.Controllers
 
                 string dataType = dataElement.DataType;
 
-                bool? appLogic = RequiresAppLogic(org, app, dataType);
+                bool? appLogic = RequiresAppLogic(dataType);
 
                 if (appLogic == null)
                 {
@@ -306,7 +312,7 @@ namespace Altinn.App.Api.Controllers
 
                 string dataType = dataElement.DataType;
 
-                bool? appLogic = RequiresAppLogic(org, app, dataType);
+                bool? appLogic = RequiresAppLogic(dataType);
 
                 if (appLogic == null)
                 {
@@ -395,6 +401,21 @@ namespace Altinn.App.Api.Controllers
             // send events to trigger application business logic
             await _altinnApp.RunDataCreation(instance, appModel);
 
+            Dictionary<string, string> updatedValues =
+                DataHelper.GetUpdatedDataValues(
+                    _appResourcesService.GetApplication().PresentationFields,
+                    instance.PresentationTexts,
+                    dataType,
+                    appModel);
+
+            if (updatedValues.Count > 0)
+            {
+                await _instanceService.UpdatePresentationTexts(
+                     int.Parse(instance.InstanceOwner.PartyId),
+                     Guid.Parse(instance.Id.Split("/")[1]),
+                     new PresentationTexts { Texts = updatedValues });
+            }
+
             int instanceOwnerPartyId = int.Parse(instance.InstanceOwner.PartyId);
 
             DataElement dataElement = await _dataService.InsertFormData(appModel, instanceGuid, _altinnApp.GetAppModelType(classRef), org, app, instanceOwnerPartyId, dataType);
@@ -447,7 +468,7 @@ namespace Altinn.App.Api.Controllers
             }
         }
 
-        private bool? RequiresAppLogic(string org, string app, string dataType)
+        private bool? RequiresAppLogic(string dataType)
         {
             bool? appLogic = false;
 
@@ -516,9 +537,11 @@ namespace Altinn.App.Api.Controllers
 
         private async Task<ActionResult> PutFormData(string org, string app, Instance instance, Guid dataGuid, string dataType)
         {
+            int instanceOwnerPartyId = int.Parse(instance.InstanceOwner.PartyId);
+
             string classRef = _appResourcesService.GetClassRefForLogicDataType(dataType);
             Guid instanceGuid = Guid.Parse(instance.Id.Split("/")[1]);
-            
+
             ModelDeserializer deserializer = new ModelDeserializer(_logger, _altinnApp.GetAppModelType(classRef));
             object serviceModel = await deserializer.DeserializeAsync(Request.Body, Request.ContentType);
 
@@ -532,10 +555,25 @@ namespace Altinn.App.Api.Controllers
                 return BadRequest("No data found in content");
             }
 
+            string serviceModelJsonString = JsonSerializer.Serialize(serviceModel);
+
             // Trigger application business logic
             bool changedByCalculation = await _altinnApp.RunCalculation(serviceModel);
 
-            int instanceOwnerPartyId = int.Parse(instance.InstanceOwner.PartyId);
+            Dictionary<string, string> updatedValues =
+                DataHelper.GetUpdatedDataValues(
+                    _appResourcesService.GetApplication().PresentationFields,
+                    instance.PresentationTexts, 
+                    dataType, 
+                    serviceModel);
+
+            if (updatedValues.Count > 0)
+            {
+                await _instanceService.UpdatePresentationTexts(
+                    int.Parse(instance.Id.Split("/")[0]),
+                    Guid.Parse(instance.Id.Split("/")[1]),
+                    new PresentationTexts { Texts = updatedValues });
+            }
 
             // Save Formdata to database
             DataElement updatedDataElement = await _dataService.UpdateData(
@@ -553,7 +591,19 @@ namespace Altinn.App.Api.Controllers
 
             if (changedByCalculation)
             {
-                return StatusCode((int)HttpStatusCode.SeeOther, updatedDataElement);
+                string updatedServiceModelString = JsonSerializer.Serialize(serviceModel);
+                CalculationResult calculationResult = new CalculationResult(updatedDataElement);
+                try
+                {
+                    Dictionary<string, object> changedFields = JsonHelper.FindChangedFields(serviceModelJsonString, updatedServiceModelString);
+                    calculationResult.ChangedFields = changedFields;
+                }
+                catch (Exception e)
+                {
+                    _logger.LogError(e, "Unable to determine changed fields");
+                }
+
+                return StatusCode((int)HttpStatusCode.SeeOther, calculationResult);
             }
 
             return Created(dataUrl, updatedDataElement);
@@ -579,7 +629,7 @@ namespace Altinn.App.Api.Controllers
             }
         }
 
-        private bool InstanceIsActive(Instance i)
+        private static bool InstanceIsActive(Instance i)
         {
             if (i?.Status?.Archived != null || i?.Status?.SoftDeleted != null || i?.Status?.HardDeleted != null)
             {
@@ -629,21 +679,24 @@ namespace Altinn.App.Api.Controllers
         {
             errorMessage = string.Empty;
 
-            if (!Request.Headers.ContainsKey("Content-Disposition"))
+            if (!Request.Headers.TryGetValue("Content-Disposition", out StringValues headerValues))
             {
-                errorMessage = "Conent-Disposition header containing 'filename' must be included in request.";
+                errorMessage = "The request must include a Content-Disposition header";
                 return false;
             }
 
-            Request.Headers.TryGetValue("Content-Disposition", out StringValues headerValues);
-            string filename = GetFilenameFromContentDisposition(headerValues.ToString());
+            ContentDispositionHeaderValue contentDisposition = ContentDispositionHeaderValue.Parse(headerValues);
+            string filename = contentDisposition.FileNameStar ?? contentDisposition.FileName;
 
             if (string.IsNullOrEmpty(filename))
             {
-                errorMessage = "Content-Disposition header must contain 'filename'.";
+                errorMessage = "The Content-Disposition header must contain a filename";
                 return false;
             }
 
+            // We actively remove quotes because we don't want them replaced with '_'.
+            // Quotes around filename in Content-Disposition is valid, but not as part of the filename.
+            filename = filename.Trim('\"').AsFileName(false);
             string[] splitFilename = filename.Split('.');
 
             if (splitFilename.Length < 2)
@@ -652,7 +705,6 @@ namespace Altinn.App.Api.Controllers
                 return false;
             }
 
-            // no restrictions on data type
             if (dataType.AllowedContentTypes == null || dataType.AllowedContentTypes.Count == 0)
             {
                 return true;
@@ -661,14 +713,13 @@ namespace Altinn.App.Api.Controllers
             string filetype = splitFilename[splitFilename.Length - 1];
             string mimeType = MimeTypeMap.GetMimeType(filetype);
 
-            if (!Request.Headers.ContainsKey("Content-Type"))
+            if (!Request.Headers.TryGetValue("Content-Type", out StringValues contentType))
             {
                 errorMessage = "Content-Type header must be included in request.";
                 return false;
             }
 
             // Verify that file mime type matches content type in request
-            Request.Headers.TryGetValue("Content-Type", out StringValues contentType);
             if (!contentType.Equals("application/octet-stream") && !mimeType.Equals(contentType, StringComparison.InvariantCultureIgnoreCase))
             {
                 errorMessage = $"Content type header {contentType} does not match mime type {mimeType} for uploaded file. Please fix header or upload another file.";
@@ -683,23 +734,6 @@ namespace Altinn.App.Api.Controllers
             }
 
             return true;
-        }
-
-        private string GetFilenameFromContentDisposition(string contentdisposition)
-        {
-            string keyWord = "filename=";
-
-            if (!contentdisposition.Contains(keyWord, StringComparison.InvariantCultureIgnoreCase))
-            {
-                return string.Empty;
-            }
-
-            int splitIndex = contentdisposition.IndexOf(keyWord) + keyWord.Length;
-            string remainder = contentdisposition.Substring(splitIndex);
-            int endIndex = remainder.IndexOf(';');
-            string filename = endIndex > 0 ? remainder.Substring(0, endIndex) : remainder;
-
-            return filename;
         }
     }
 }

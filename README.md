@@ -1,10 +1,13 @@
-# Altinn Studio
+# Altinn 3
 
-Altinn Studio is the next generation Altinn application development solution. Together with Altinn Apps and Altinn Platform, it makes a complete application development and hosting platform.
+**Altinn Studio** is the next generation Altinn application development solution.  
+Together with **Altinn Apps** and **Altinn Platform** (also part of this repo), this is a complete application development and hosting platform.
 
 Altinn Studio is available at https://altinn.studio.
 
 Use the [documentation](https://docs.altinn.studio/teknologi/altinnstudio/) to get started.
+
+![Altinn 3 concept](https://docs.altinn.studio/teknologi/altinnstudio/about/concept3.svg "Altinn 3 - Concept")
 
 ## Build status
 
@@ -161,7 +164,7 @@ The script wil also listen to changes in the receipt react app, rebuild and copy
 
 ### End to end tests
 
-Automated end to end tests are currently being developed.
+[Integration tests](https://github.com/Altinn/altinn-studio/tree/master/src/test/cypress) for local studio.
 
 ### Coding style tests
 

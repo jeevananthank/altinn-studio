@@ -1,23 +1,18 @@
-import React from 'react';
+/* eslint-disable react/jsx-props-no-spreading */
+import * as React from 'react';
 import { makeStyles } from '@material-ui/core/styles';
 import TreeItem, { TreeItemProps } from '@material-ui/lab/TreeItem';
 import Typography from '@material-ui/core/Typography';
-import { InputField } from './InputField';
-import { setKey,
-  setFieldValue,
-  addField,
-  addProperty,
-  deleteProperty,
-  setPropertyName, 
-  deleteField} from '../features/editor/schemaEditorSlice';
 import { useDispatch, useSelector } from 'react-redux';
-import ConstItem from './ConstItem';
-import { IconButton, TextField } from '@material-ui/core';
-import { AddCircleOutline, CreateOutlined, DeleteOutline, DoneOutlined } from '@material-ui/icons';
-import { Field, ISchemaState } from '../types';
+import { IconButton, Menu, MenuItem } from '@material-ui/core';
+import { addField, deleteProperty, setSelectedId } from '../features/editor/schemaEditorSlice';
+import { Field, ISchemaState, UiSchemaItem } from '../types';
 
-type StyledTreeItemProps = TreeItemProps & {
-  item: any
+type SchemaItemProps = TreeItemProps & {
+  item: UiSchemaItem;
+  keyPrefix: string;
+  // eslint-disable-next-line react/require-default-props
+  refSource?: string;
 };
 
 const useStyles = makeStyles({
@@ -29,12 +24,11 @@ const useStyles = makeStyles({
   labelRoot: {
     display: 'flex',
     alignItems: 'center',
-    padding: 12,
+    padding: 8,
   },
   label: {
-    fontSize: '1.2em',
     paddingRight: 12,
-    lineHeight: 2.4,
+    lineHeight: '18px',
     flexGrow: 1,
   },
   typeRef: {
@@ -52,15 +46,50 @@ const useStyles = makeStyles({
     '&:hover': {
       backgroundColor: '#1EAEF7',
       color: 'white',
-    }
+    },
   },
   button: {
     background: 'none',
     border: 'none',
-  }
+  },
+  contextButton: {
+    borderRadius: 60,
+    margin: 0,
+    padding: 10,
+    display: 'none',
+    '$treeItem :hover > &': {
+      display: 'block',
+    },
+  },
+  menuItem: {
+    padding: 8,
+  },
+  iconContainer: {
+    background: '#022f51',
+    textAlign: 'center',
+    padding: '5px 0px 5px 0px',
+    marginRight: 4,
+    fontSize: '10px',
+  },
+  treeItem: {
+    marginLeft: 8,
+    '&.Mui-selected': {
+      background: '#E3F7FF',
+      border: '1px solid #006BD8',
+      boxSizing: 'border-box',
+      borderRadius: '5px',
+    },
+    '&.Mui-selected > .MuiTreeItem-content .MuiTreeItem-label, .MuiTreeItem-root.Mui-selected:focus > .MuiTreeItem-content .MuiTreeItem-label': {
+      backgroundColor: 'transparent',
+    },
+  },
+  filler: {
+    paddingTop: 5,
+    paddingBottom: 5,
+  },
 });
 
-const getRefItems = (schema: any[], id: string): any[] => {
+const getRefItems = (schema: any[], id: string | undefined): any[] => {
   let result: any[] = [];
   if (!id) {
     return result;
@@ -75,208 +104,187 @@ const getRefItems = (schema: any[], id: string): any[] => {
     }
   }
   return result;
-}
+};
 
-function SchemaItem(props: StyledTreeItemProps) {
+function SchemaItem(props: SchemaItemProps) {
   const classes = useStyles();
   const dispatch = useDispatch();
-  const {item, ...other} = props;
-  let { id, $ref, fields, properties } = item;
+  const {
+    item, refSource, keyPrefix, ...other
+  } = props;
 
-  const [constItem, setConstItem] = React.useState<boolean>(false);
   const [definitionItem, setDefinitionItem] = React.useState<any>(item);
-  const [editLabel, setEditLabel] = React.useState<boolean>(false);
-  const [label, setLabel] = React.useState<string>(item.name || id.replace('#/definitions/'));
-
-  const refItems: any[] = useSelector((state: ISchemaState) => getRefItems(state.uiSchema, $ref));
+  const uiSchema = useSelector((state: ISchemaState) => state.uiSchema);
+  const refItems: any[] = useSelector((state: ISchemaState) => getRefItems(state.uiSchema, item.$ref));
+  const [contextAnchor, setContextAnchor] = React.useState<any>(null);
 
   React.useEffect(() => {
-    if (fields  && fields.find((v: any) => v.key === 'const')) {
-      setConstItem(true);
-    }
     if (refItems && refItems.length > 0) {
       const refItem = refItems[refItems.length - 1];
       setDefinitionItem(refItem);
     }
-  }, [fields, refItems]);
+  }, [item.fields, refItems]);
 
-  const onAddPropertyClick = (event: any) => {
-    const path = definitionItem?.id || id;
-    dispatch(addProperty({
-      path,
-      newKey: 'newProp',}));
-    event.preventDefault();
+  const onItemClick = (itemId: string) => {
+    dispatch(setSelectedId({ id: itemId }));
   };
+  const icon = (name: string) => <span className={classes.iconContainer}><i className={`fa ${name}`} style={{ color: 'white', textAlign: 'center' }} /></span>;
 
-  const onAddFieldClick = (event: any) => {
-    const path = definitionItem?.id || id;
-    dispatch(addField({
-      path,
-      key: 'key',
-      value: 'value'
-    }));
-    event.preventDefault();
-  };
-
-  const onDeleteObjectClick = (event: any) => {
-    dispatch(deleteProperty({path: id}));
-  };
-
-  const onDeleteFieldClick = (path: string, key: string) => {
-    dispatch(deleteField({path, key}));
-  };
-
-  const onToggleEditLabel = (event: any) => {
-    if (editLabel) {
-      dispatch(setPropertyName({path: id, name: label}));
-    }
-    setEditLabel(!editLabel);
-    event.stopPropagation();
-  };
-
-  const onClickEditLabel = (event: any) => {
-    event.stopPropagation();
-  };
-
-  const onChangeLabel = (event: any) => {
-    setLabel(event.target.value);
-    event.stopPropagation();
-  };
-
-  const onChangeValue = (path: string, value: any, key?: string) => {
-    const data = {
-      path, 
-      value: isNaN(value) ? value : +value,
-      key,
-    }
-    dispatch(setFieldValue(data));
-  };
-
-  const onChangeKey = (path: string, oldKey: string, newKey: string) => {
-    dispatch(setKey({path, oldKey, newKey}))
-  };
-
-  const RenderProperties = (itemProperties: any[]) => {
-    if (itemProperties && itemProperties.length > 0)
-    {
+  const RenderProperties = (itemProperties: any[] | undefined) => {
+    if (itemProperties && itemProperties.length > 0) {
       return (
-        itemProperties.map((property: any) => {
-          return (
-            <SchemaItem
-              key={property.id}
-              item={property}
-              nodeId={property.id}
-            />
-          )
-        })
+        <TreeItem
+          classes={{ root: classes.treeItem }}
+          onClick={() => onItemClick(item.id)}
+          nodeId={`${keyPrefix}-${item.id}-properties`}
+          label={<div className={classes.filler}>{ icon('fa-datamodel-properties') } properties</div>}
+        >
+          { itemProperties.map((property: any) => {
+            return (
+              <SchemaItem
+                keyPrefix={`${keyPrefix}-${item.id}-properties`}
+                key={`${keyPrefix}-${property.id}`}
+                item={property}
+                nodeId={`${keyPrefix}-prop-${property.id}`}
+                onClick={() => onItemClick(property.id)}
+              />
+            );
+          })
+          }
+        </TreeItem>
       );
     }
     return null;
   };
 
-  const RenderFields = (itemFields: Field[], path: string) => {
-
+  const RenderFields = (itemFields: Field[] | undefined, path: string) => {
     if (itemFields && itemFields.length > 0) {
-      return (
-        <div>
-          {itemFields.map((field) => {
-            if (field.key.startsWith('@xsd')) {
-              return null;
-            }
-              return (
-                <InputField
-                  key={`field-${path}-${field.key}`}
-                  value={field.value}
-                  label={field.key}
-                  fullPath={path}
-                  onChangeValue={onChangeValue}
-                  onChangeKey={onChangeKey}
-                  onDeleteField={onDeleteFieldClick}
-                />
-              );
-            })
-          }
-        </div>
+      return (itemFields.map((field) => {
+        if (field.key === 'allOf' || field.key === 'oneOf' || field.key === 'anyOf') {
+          return (
+            <TreeItem
+              classes={{ root: classes.treeItem }}
+              nodeId={`${item.id}-${field.key}`}
+              className={classes.filler}
+              key={`field-${path}-${field.key}`}
+              label={<>{ icon('fa-datamodel-element') } {field.key}</>}
+              onClick={() => onItemClick(item.id)}
+            >
+              {field.value.map((e: {$ref: string}) => {
+                const el = uiSchema.find((s) => s.id === e.$ref);
+                if (el) {
+                  return <SchemaItem
+                    keyPrefix={`${keyPrefix}-${el.id}`}
+                    key={`${keyPrefix}-${el.id}`}
+                    refSource={item.$ref}
+                    onClick={() => onItemClick(el.id)}
+                    item={el}
+                    nodeId={`${keyPrefix}-${el.id}-ref`}
+                  />;
+                }
+                return null;
+              })}
+            </TreeItem>);
+        }
+        return (
+          <TreeItem
+            classes={{ root: classes.treeItem }}
+            nodeId={`${item.id}-${field.key}`}
+            className={classes.filler}
+            key={`field-${path}-${field.key}`}
+            label={<>{ icon('fa-datamodel-element') } {field.key}: {field.value}</>}
+            onClick={() => onItemClick(item.id)}
+          />
         );
+      })
+      );
     }
     return null;
   };
 
   const RenderRefItems = () => {
     if (refItems && refItems.length > 0) {
-      let typeStr = '';
-      refItems.forEach((refItem, index) => {
-        typeStr = `${typeStr} ${refItem.id.replace('#/definitions/', '')} ${index < refItems.length - 1 ? '-->' : ''}`
-      })
       return (
-        <>
-          <Typography>Type: {typeStr}</Typography>
-          {RenderProperties(definitionItem?.properties)}
-          {RenderFields(definitionItem?.fields, definitionItem?.id)}
-        </>
-      )
-    }
-  };
-
-  const RenderLabel = () => {
-    return (
-      <div className={classes.labelRoot}>
-        {editLabel ?
-        <TextField
-          className={classes.label}
-          value={label}
-          onChange={onChangeLabel}
-          onClick={onClickEditLabel}
-          autoFocus={true}
+        <SchemaItem
+          keyPrefix={`${keyPrefix}-${definitionItem.id}`}
+          key={`${keyPrefix}-${definitionItem.id}`}
+          refSource={item.$ref}
+          onClick={() => onItemClick(definitionItem.id)}
+          item={definitionItem}
+          nodeId={`${keyPrefix}-${definitionItem.id}-ref`}
         />
-        : <Typography className={classes.label} variant='body1'>
-          {props.item.name || id.replace('#/definitions/', '')}
-        </Typography>}
-        <IconButton onClick={onToggleEditLabel}>
-          {editLabel ? <DoneOutlined /> : <CreateOutlined />}
-        </IconButton>
-        {(definitionItem && definitionItem.properties) &&
-        <>
-          <IconButton
-            aria-label='Add property'
-            onClick={onAddPropertyClick}
-          >
-            <AddCircleOutline/>
-          </IconButton>
-        </>
-        }
-          <IconButton
-            aria-label='Delete object'
-            onClick={onDeleteObjectClick}
-          >
-            <DeleteOutline/>
-          </IconButton>
-      </div>
-    );
+      );
+    }
+    return null;
   };
 
-  if (constItem || item.value) {
-    return (
-      <TreeItem 
-        label={
-          <ConstItem item={item}/>
-        }
-        {...other}
-      />
-    )
-  }
+  const handleCloseContextMenu = (e: React.MouseEvent) => {
+    setContextAnchor(null);
+    e.stopPropagation();
+  };
 
+  const renderLabelText = () => {
+    if (refSource) {
+      return <>{ icon('fa-datamodel-ref') } {`$ref: ${refSource}`}</>;
+    }
+    return <>{ icon('fa-datamodel-object') } {item.name ?? item.id.replace('#/definitions/', '')}</>;
+  };
+  const handleDeleteClick = (e: React.MouseEvent) => {
+    e.preventDefault();
+    setContextAnchor(null);
+    dispatch(deleteProperty({ path: item.id }));
+  };
+
+  const handleAddProperty = (e: React.MouseEvent) => {
+    e.preventDefault();
+    setContextAnchor(null);
+    dispatch(addField({
+      path: item.id,
+      key: 'key',
+      value: 'value',
+    }));
+  };
+  const handleContextMenuClick = (e: React.MouseEvent) => {
+    setContextAnchor(e.currentTarget);
+    e.stopPropagation();
+  };
+  const renderLabel = () => (
+    <div className={classes.labelRoot}>
+      <Typography className={classes.label}>{renderLabelText()}</Typography>
+      <IconButton
+        className={classes.contextButton}
+        aria-controls='simple-menu' aria-haspopup='true'
+        id='open-context-menu-button'
+        onClick={handleContextMenuClick}
+      ><i className='fa fa-ellipsismenu'/>
+      </IconButton>
+      <Menu
+        id={`${item.id}-context-menu`}
+        anchorEl={contextAnchor}
+        keepMounted
+        open={Boolean(contextAnchor)}
+        onClose={handleCloseContextMenu}
+      >
+        { item.fields &&
+          <MenuItem onClick={handleAddProperty}><i className={`${classes.menuItem} fa fa-plus`}/> Add property</MenuItem>
+        }
+        <MenuItem><i className='fa fa-clone'/> Import</MenuItem>
+        { (item.fields || item.properties || item.$ref) &&
+          <MenuItem onClick={handleDeleteClick}><i className='fa fa-trash'/> Delete</MenuItem>
+        }
+      </Menu>
+    </div>
+  );
   return (
     <TreeItem
-      label={<RenderLabel/>}
+      classes={{ root: classes.treeItem }}
+      label={renderLabel()}
+      onClick={() => onItemClick(item.id)}
       {...other}
     >
       {RenderRefItems()}
-      {RenderProperties(properties)}
-      {RenderFields(fields, id)}
-      <Typography className={classes.buttonRoot} variant="button" color="inherit">
-        <button className={classes.button} title='AddSib' onClick={onAddFieldClick}>Add field</button>
-      </Typography>
+      {RenderProperties(item.properties)}
+      {RenderFields(item.fields, item.id)}
     </TreeItem>
   );
 }

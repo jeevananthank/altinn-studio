@@ -8,7 +8,7 @@ import * as renderer from 'react-test-renderer';
 import configureStore from 'redux-mock-store';
 import { AltinnAppTheme } from 'altinn-shared/theme';
 import ProcessStep from '../../src/shared/containers/ProcessStep';
-import { ProcessSteps, IRuntimeState } from '../../src/types';
+import { ProcessTaskType, IRuntimeState } from '../../src/types';
 import { getInitialStateMock } from '../../__mocks__/mocks';
 
 describe('>>> containers/ProcessStep.tsx', () => {
@@ -34,10 +34,12 @@ describe('>>> containers/ProcessStep.tsx', () => {
     mockInitialState = getInitialStateMock({
       formValidations: {
         validations: {
-          'mock-component-id': {
-            simpleBinding: {
-              errors: ['mock-error-message'],
-              warnings: ['mock-warning-message'],
+          FormLayout: {
+            'mock-component-id': {
+              simpleBinding: {
+                errors: ['mock-error-message'],
+                warnings: ['mock-warning-message'],
+              },
             },
           },
         },
@@ -55,7 +57,7 @@ describe('>>> containers/ProcessStep.tsx', () => {
         <Provider store={mockStore}>
           <ProcessStep
             header={mockHeader}
-            step={ProcessSteps.FormFilling}
+            step={ProcessTaskType.Data}
           />
         </Provider>
       </MemoryRouter>,
@@ -69,7 +71,7 @@ describe('>>> containers/ProcessStep.tsx', () => {
         <Provider store={mockStore}>
           <ProcessStep
             header={mockHeader}
-            step={ProcessSteps.FormFilling}
+            step={ProcessTaskType.Data}
           >
             <div id='mockFormFiller' />
           </ProcessStep>
@@ -85,7 +87,7 @@ describe('>>> containers/ProcessStep.tsx', () => {
         <Provider store={mockStore}>
           <ProcessStep
             header={mockHeader}
-            step={ProcessSteps.FormFilling}
+            step={ProcessTaskType.Data}
           />
         </Provider>
       </MemoryRouter>,
@@ -103,7 +105,7 @@ describe('>>> containers/ProcessStep.tsx', () => {
         <Provider store={mockStore}>
           <ProcessStep
             header={mockHeader}
-            step={ProcessSteps.Archived}
+            step={ProcessTaskType.Archived}
           />
         </Provider>
       </MemoryRouter>,
@@ -128,9 +130,11 @@ describe('>>> containers/ProcessStep.tsx', () => {
       },
       formValidations: {
         validations: {
-          unmapped: {
-            'mock-component-id': {
-              errors: ['mock-error-message', 'another-mock-error-message'],
+          FormLayout: {
+            unmapped: {
+              'mock-component-id': {
+                errors: ['mock-error-message', 'another-mock-error-message'],
+              },
             },
           },
         },
@@ -145,7 +149,7 @@ describe('>>> containers/ProcessStep.tsx', () => {
         <Provider store={mockStore}>
           <ProcessStep
             header={mockHeader}
-            step={ProcessSteps.FormFilling}
+            step={ProcessTaskType.Data}
           />
         </Provider>
       </MemoryRouter>,
@@ -162,7 +166,7 @@ describe('>>> containers/ProcessStep.tsx', () => {
         <Provider store={mockStore}>
           <ProcessStep
             header={mockHeader}
-            step={ProcessSteps.FormFilling}
+            step={ProcessTaskType.Data}
           />
         </Provider>
       </MemoryRouter>,

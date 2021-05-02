@@ -27,6 +27,8 @@ namespace Altinn.Studio.Designer
     /// </summary>
     public class Startup
     {
+        private IWebHostEnvironment CurrentEnvironment { get; set; }
+
         /// <summary>
         /// Gets the application configuration
         /// </summary>
@@ -44,9 +46,11 @@ namespace Altinn.Studio.Designer
         /// </summary>
         /// <param name="configuration">The configuration for designer</param>
         /// <param name="loggerFactory">The logger factory</param>
-        public Startup(IConfiguration configuration, ILoggerFactory loggerFactory)
+        /// <param name="env">The environment</param>
+        public Startup(IConfiguration configuration, ILoggerFactory loggerFactory, IWebHostEnvironment env)
         {
             Configuration = configuration;
+            CurrentEnvironment = env;
             _logger = loggerFactory.CreateLogger<Startup>();
         }
 
@@ -79,7 +83,7 @@ namespace Altinn.Studio.Designer
             services.ConfigureMvc();
             services.ConfigureSettings(Configuration);
             services.RegisterTypedHttpClients(Configuration);
-            services.ConfigureAuthentication();
+            services.ConfigureAuthentication(Configuration, CurrentEnvironment);
 
             Console.WriteLine($"// Program.cs // ConfigureServices // Configure authentication successfully added.");
 
@@ -118,7 +122,7 @@ namespace Altinn.Studio.Designer
         /// <param name="env">Hosting environment</param>
         public void Configure(IApplicationBuilder appBuilder, IWebHostEnvironment env)
         {
-            if (env.IsDevelopment())
+            if (env.IsDevelopment() || env.IsStaging())
             {
                 appBuilder.UseExceptionHandler("/error-local-development");
             }
@@ -157,8 +161,12 @@ namespace Altinn.Studio.Designer
 
             appBuilder.UseRouting();
 
-            // appBuilder.UseHsts();
-            // appBuilder.UseHttpsRedirection();
+            if (!env.IsDevelopment())
+            {
+                appBuilder.UseHsts();
+                appBuilder.UseHttpsRedirection();
+            }
+
             appBuilder.UseAuthentication();
             appBuilder.UseAuthorization();
 
@@ -202,7 +210,7 @@ namespace Altinn.Studio.Designer
                           defaults: new { controller = "Service" },
                           constraints: new
                           {
-                              controller = @"(Codelist|Config|Service|RuntimeAPI|ManualTesting|Model|Rules|ServiceMetadata|Text|UI|UIEditor|ServiceDevelopment)",
+                              controller = @"(Config|RuntimeAPI|ManualTesting|Model|Rules|ServiceMetadata|Text|UI|UIEditor|ServiceDevelopment)",
                               app = "^[a-z]+[a-zA-Z0-9-]+[a-zA-Z0-9]$",
                               id = "[a-zA-Z0-9_\\-\\.]{1,30}",
                           });

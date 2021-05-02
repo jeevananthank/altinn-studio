@@ -1,6 +1,6 @@
 const applicationMetadataJSON = `{
-  "id": "ttd/test-app",
-  "org": "ttd",
+  "id": "mockOrg/test-app",
+  "org": "mockOrg",
   "title": {
     "nb": "Test App"
   },
@@ -24,6 +24,22 @@ const applicationMetadataJSON = `{
         "application/pdf"
       ],
       "maxCount": 0,
+      "minCount": 0
+    },
+    {
+      "id": "test-data-type-1",
+      "allowedContentTypes": [
+        "application/pdf"
+      ],
+      "maxCount": 5,
+      "minCount": 0
+    },
+    {
+      "id": "test-data-type-2",
+      "allowedContentTypes": [
+        "application/pdf"
+      ],
+      "maxCount": 2,
       "minCount": 0
     }
   ],

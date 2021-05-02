@@ -24,23 +24,15 @@ namespace Altinn.Platform.Storage.UnitTest.Mocks.Repository
 
         public async Task<Application> FindOne(string appId, string org)
         {
-           return await Task.FromResult(GetTestApplication(org, appId.Split("/")[1]));
+            return await Task.FromResult(GetTestApplication(org, appId.Split("/")[1]));
         }
 
-        public async Task<Dictionary<string, Dictionary<string, string>>> GetAppTitles(List<string> appIds)
+        public Task<List<Application>> FindAll()
         {
-            Dictionary<string, Dictionary<string, string>> appTitles = new Dictionary<string, Dictionary<string, string>>();
-
-            foreach (string appId in appIds)
-            {
-                Application app = GetTestApplication(appId.Split("/")[0], appId.Split("/")[1]);
-                appTitles.Add(app.Id, app.Title);
-            }
-
-            return await Task.FromResult(appTitles);
+            throw new NotImplementedException();
         }
 
-        public Task<List<Application>> ListApplications(string org)
+        public Task<List<Application>> FindByOrg(string org)
         {
             throw new NotImplementedException();
         }
@@ -48,6 +40,39 @@ namespace Altinn.Platform.Storage.UnitTest.Mocks.Repository
         public Task<Application> Update(Application item)
         {
             throw new NotImplementedException();
+        }
+
+        public Task<Dictionary<string, string>> GetAllAppTitles()
+        {
+            Dictionary<string, string> appTitles = new Dictionary<string, string>();
+
+            if (Directory.Exists(GetAppsPath()))
+            {
+                string[] orgFolders = Directory.GetDirectories(GetAppsPath());
+                foreach (string orgDirectory in orgFolders)
+                {
+                    string[] appDirectiories = Directory.GetDirectories(orgDirectory);
+
+                    foreach (var appDirectory in appDirectiories)
+                    {
+                        string metadataPath = Path.Combine(appDirectory + @"\config\applicationmetadata.json");
+                        if (File.Exists(metadataPath))
+                        {
+                            string content = File.ReadAllText(metadataPath);
+                            Application application = (Application)JsonConvert.DeserializeObject(content, typeof(Application));
+                            string titles = string.Empty;
+                            foreach (string title in application.Title.Values)
+                            {
+                                titles += title + ";";
+                            }
+
+                            appTitles.Add(application.Id, titles);
+                        }
+                    }
+                }
+            }
+
+            return Task.FromResult(appTitles);
         }
 
         private Application GetTestApplication(string org, string app)
@@ -65,7 +90,7 @@ namespace Altinn.Platform.Storage.UnitTest.Mocks.Repository
 
         private string GetAppsPath()
         {
-            string unitTestFolder = Path.GetDirectoryName(new Uri(typeof(ApplicationRepositoryMock).Assembly.CodeBase).LocalPath);
+            string unitTestFolder = Path.GetDirectoryName(new Uri(typeof(ApplicationRepositoryMock).Assembly.Location).LocalPath);
             return Path.Combine(unitTestFolder, @"..\..\..\data\apps");
         }
     }

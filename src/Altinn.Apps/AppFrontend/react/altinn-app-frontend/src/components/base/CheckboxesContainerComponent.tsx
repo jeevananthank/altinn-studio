@@ -7,7 +7,7 @@ import FormControl from '@material-ui/core/FormControl';
 import { makeStyles } from '@material-ui/core/styles';
 import * as React from 'react';
 import { AltinnAppTheme } from 'altinn-shared/theme';
-import classNames = require('classnames');
+import classNames from 'classnames';
 import { useSelector } from 'react-redux';
 import { IRuntimeState } from 'src/types';
 import { renderValidationMessagesForComponent } from '../../utils/render';
@@ -98,17 +98,22 @@ export const CheckboxContainerComponent = (props: ICheckboxContainerProps) => {
 
   React.useEffect(() => {
     returnState();
+  }, [options]);
+
+  React.useEffect(() => {
+    returnState();
   }, [props.formData]);
 
   const returnState = () => {
     if (
       !props.formData &&
-      props.preselectedOptionIndex &&
+      props.preselectedOptionIndex >= 0 &&
       options &&
       props.preselectedOptionIndex < options.length
     ) {
       const preSelected: string[] = [];
       preSelected[props.preselectedOptionIndex] = options[props.preselectedOptionIndex].value;
+      props.handleDataChange(preSelected[props.preselectedOptionIndex]);
       setSelected(preSelected);
     } else {
       setSelected(props.formData ? props.formData.toString().split(',') : []);
@@ -117,15 +122,20 @@ export const CheckboxContainerComponent = (props: ICheckboxContainerProps) => {
 
   const onDataChanged = (event: React.ChangeEvent<HTMLInputElement>) => {
     const newSelected: any = selected.slice();
+    const index = newSelected.indexOf(event.target.name);
 
-    if (newSelected[event.target.value] === event.target.name) {
-      newSelected[event.target.value] = '';
+    if (index >= 0) {
+      newSelected[index] = '';
     } else {
-      newSelected[event.target.value] = event.target.name;
+      newSelected.push(event.target.name);
     }
     const filtered = newSelected.filter((element: string) => !!element);
     props.handleFocusUpdate(props.id);
     props.handleDataChange(selectedHasValues(filtered) ? filtered.join() : '');
+  };
+
+  const handleOnBlur = () => {
+    props.handleDataChange(props.formData);
   };
 
   const selectedHasValues = (select: string[]): boolean => {
@@ -153,23 +163,8 @@ export const CheckboxContainerComponent = (props: ICheckboxContainerProps) => {
     if (changed === -1) {
       return false;
     }
-
-    return props.shouldFocus && changed === index;
-  };
-
-  const StyledCheckbox = (styledCheckboxProps: IStyledCheckboxProps) => {
-    const { label, ...checkboxProps } = styledCheckboxProps;
-    return (
-      <Checkbox
-        className={classes.root}
-        disableRipple={true}
-        color='default'
-        checkedIcon={<span className={classNames(classes.icon, classes.checkedIcon)} />}
-        icon={<span className={classes.icon} />}
-        inputProps={{ 'aria-label': label }}
-        {...checkboxProps}
-      />
-    );
+    const should = props.shouldFocus && changed === index;
+    return should;
   };
 
   const RenderLegend = props.legend;
@@ -182,17 +177,20 @@ export const CheckboxContainerComponent = (props: ICheckboxContainerProps) => {
       <FormGroup
         row={checkBoxesIsRow}
         id={props.id}
+        key={`checkboxes_group_${props.id}`}
       >
         {options.map((option, index) => (
-          <React.Fragment key={index}>
+          <React.Fragment key={option.value}>
             <FormControlLabel
-              key={index}
+              key={option.value}
               classes={{ root: classNames(classes.margin) }}
               control={(
                 <StyledCheckbox
                   checked={isOptionSelected(option.value)}
                   onChange={onDataChanged}
+                  onBlur={handleOnBlur}
                   value={index}
+                  key={option.value}
                   name={option.value}
                   autoFocus={inFocus(index)}
                   label={props.getTextResourceAsString(option.label)}
@@ -207,5 +205,22 @@ export const CheckboxContainerComponent = (props: ICheckboxContainerProps) => {
         ))}
       </FormGroup>
     </FormControl>
+  );
+};
+
+const StyledCheckbox = (styledCheckboxProps: IStyledCheckboxProps) => {
+  const { label, ...checkboxProps } = styledCheckboxProps;
+  const classes = useStyles(styledCheckboxProps);
+
+  return (
+    <Checkbox
+      className={classes.root}
+      disableRipple={true}
+      color='default'
+      checkedIcon={<span className={classNames(classes.icon, classes.checkedIcon)} />}
+      icon={<span className={classes.icon} />}
+      inputProps={{ 'aria-label': label }}
+      {...checkboxProps}
+    />
   );
 };

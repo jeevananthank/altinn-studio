@@ -199,7 +199,7 @@ namespace Altinn.App.Services.Implementation
         }
 
         /// <inheritdoc />
-        public string GetLayoutSettings()
+        public string GetLayoutSettingsString()
         {
             string filename = Path.Join(_settings.AppBasePath, _settings.UiFolder, _settings.FormLayoutSettingsFileName);
             string filedata = null;
@@ -209,6 +209,20 @@ namespace Altinn.App.Services.Implementation
             }
 
             return filedata;
+        }
+        
+        /// <inheritdoc />
+        public LayoutSettings GetLayoutSettings()
+        {
+            string filename = Path.Join(_settings.AppBasePath, _settings.UiFolder, _settings.FormLayoutSettingsFileName);
+            string filedata = null;
+            if (File.Exists(filename))
+            {
+                filedata = File.ReadAllText(filename, Encoding.UTF8);
+            }
+
+            LayoutSettings layoutSettings = JsonConvert.DeserializeObject<LayoutSettings>(filedata);
+            return layoutSettings;
         }
 
         /// <inheritdoc />
@@ -285,6 +299,90 @@ namespace Altinn.App.Services.Implementation
           }
 
           return JsonConvert.SerializeObject(layouts);
+        }
+
+        /// <inheritdoc />
+        public string GetLayoutSets()
+        {
+            string filename = Path.Join(_settings.AppBasePath, _settings.UiFolder, _settings.LayoutSetsFileName);
+            string filedata = null;
+            if (File.Exists(filename))
+            {
+                filedata = File.ReadAllText(filename, Encoding.UTF8);
+            }
+
+            return filedata;
+        }
+
+        /// <inheritdoc />
+        public string GetLayoutsForSet(string layoutSetId)
+        {
+            Dictionary<string, object> layouts = new Dictionary<string, object>();
+
+            string layoutsPath = _settings.AppBasePath + _settings.UiFolder + layoutSetId + "/layouts/";
+            if (Directory.Exists(layoutsPath))
+            {
+                foreach (string file in Directory.GetFiles(layoutsPath))
+                {
+                    string data = File.ReadAllText(file, Encoding.UTF8);
+                    string name = file.Replace(layoutsPath, string.Empty).Replace(".json", string.Empty);
+                    layouts.Add(name, JsonConvert.DeserializeObject<object>(data));
+                }
+            }
+
+            return JsonConvert.SerializeObject(layouts);
+        }
+
+        /// <inheritdoc />
+        public string GetLayoutSettingsStringForSet(string layoutSetId)
+        {
+            string filename = Path.Join(_settings.AppBasePath, _settings.UiFolder, layoutSetId, _settings.FormLayoutSettingsFileName);
+            string filedata = null;
+            if (File.Exists(filename))
+            {
+                filedata = File.ReadAllText(filename, Encoding.UTF8);
+            }
+
+            return filedata;
+        }
+
+        /// <inheritdoc />
+        public LayoutSettings GetLayoutSettingsForSet(string layoutSetId)
+        {
+            string filename = Path.Join(_settings.AppBasePath, _settings.UiFolder, layoutSetId, _settings.FormLayoutSettingsFileName);
+            string filedata = null;
+            if (File.Exists(filename))
+            {
+                filedata = File.ReadAllText(filename, Encoding.UTF8);
+            }
+
+            LayoutSettings layoutSettings = JsonConvert.DeserializeObject<LayoutSettings>(filedata);
+            return layoutSettings;
+        }
+
+        /// <inheritdoc />
+        public byte[] GetRuleConfigurationForSet(string id)
+        {
+            string filename = Path.Join(_settings.AppBasePath, _settings.UiFolder, id, _settings.RuleConfigurationJSONFileName);
+            return ReadFileByte(filename);
+        }
+
+        /// <inheritdoc />
+        public byte[] GetRuleHandlerForSet(string id)
+        {
+            string filename = Path.Join(_settings.AppBasePath, _settings.UiFolder, id, _settings.RuleHandlerFileName);
+            return ReadFileByte(filename);
+        }
+
+        private byte[] ReadFileByte(string fileName)
+        {
+            byte[] filedata = null;
+            if (File.Exists(fileName))
+            {
+                filedata = File.ReadAllBytes(fileName);
+            }
+
+            return filedata;
         }
     }
 }
