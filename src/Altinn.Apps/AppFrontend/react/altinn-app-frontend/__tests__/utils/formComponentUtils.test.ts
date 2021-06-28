@@ -1,4 +1,4 @@
-import { getDisplayFormData, getFormDataForComponentInRepeatingGroup } from '../../src/utils/formComponentUtils';
+import { getDisplayFormData, getFormDataForComponentInRepeatingGroup, isSimpleComponent } from '../../src/utils/formComponentUtils';
 import { IOptions, ITextResource } from '../../src/types';
 import { IFormData } from '../../src/features/form/data/formDataReducer';
 import { ILayoutComponent, ISelectionComponentProps } from '../../src/features/form/layout';
@@ -51,13 +51,26 @@ describe('>>> utils/formComponentUtils.ts', () => {
     expect(result).toEqual('test');
   });
 
-  it('+++ getDisplayFormData should return comma separated string of text resources for checkboxes with mulitiple values', () => {
+  it('+++ getDisplayFormData should return comma separated string of text resources for checkboxes with multiple values', () => {
     const checkboxComponent = {
       type: 'Checkboxes',
       optionsId: 'mockOption',
     } as ISelectionComponentProps;
     const result = getDisplayFormData('mockBindingCheckbox', checkboxComponent, mockFormData, mockOptions, mockTextResources);
     expect(result).toEqual('Value1, Value2');
+  });
+
+  it('+++ getDisplayFormData should return object with text resources for checkboxes with multiple values when asObject parameter is true', () => {
+    const checkboxComponent = {
+      type: 'Checkboxes',
+      optionsId: 'mockOption',
+    } as ISelectionComponentProps;
+    const result = getDisplayFormData('mockBindingCheckbox', checkboxComponent, mockFormData, mockOptions, mockTextResources, true);
+    const expected = {
+      optionValue1: 'Value1',
+      optionValue2: 'Value2',
+    };
+    expect(result).toEqual(expected);
   });
 
   it('+++ getFormDataForComponentInRepeatingGroup should return comma separated string of text resources for checkboxes with mulitiple values', () => {
@@ -70,5 +83,35 @@ describe('>>> utils/formComponentUtils.ts', () => {
     } as unknown as ISelectionComponentProps;
     const result = getFormDataForComponentInRepeatingGroup(mockFormData, checkboxComponent, 0, 'group', mockTextResources, mockOptions);
     expect(result).toEqual('RepValue1, RepValue2, RepValue3');
+  });
+
+  it('+++ isSimpleComponent should return false when dataModelBinding is undefined', () => {
+    const genericComponent = {
+      type: 'FileUpload',
+    }
+    const result = isSimpleComponent(undefined, genericComponent.type);
+    expect(result).toEqual(false);
+  });
+
+  it('+++ isSimpleComponent should return false when component type is Datepicker', () => {
+    const genericComponent = {
+      type: 'Datepicker',
+      dataModelBindings: {
+        simpleBinding: 'group.superdate',
+      },
+    }
+    const result = isSimpleComponent(genericComponent.dataModelBindings, genericComponent.type);
+    expect(result).toEqual(false);
+  });
+
+  it('+++ isSimpleComponent should return true when component type is Input', () => {
+    const genericComponent = {
+      type: 'Input',
+      dataModelBindings: {
+        simpleBinding: 'group.secretnumber',
+      },
+    }
+    const result = isSimpleComponent(genericComponent.dataModelBindings, genericComponent.type);
+    expect(result).toEqual(true);
   });
 });

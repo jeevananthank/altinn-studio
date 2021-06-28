@@ -1,7 +1,7 @@
 /* eslint-disable no-param-reassign */
 import { createSlice } from '@reduxjs/toolkit';
-import { buildJsonSchema, buildUISchema, getUiSchemaItem } from '../../utils';
-import { ISchemaState, ISetRefAction, ISetValueAction, ItemType, UiSchemaItem } from '../../types';
+import { buildJsonSchema, buildUISchema, getDomFriendlyID, getParentPath, getUiSchemaItem } from '../../utils';
+import { ISchema, ISchemaState, ISetRefAction, ISetTypeAction, ISetValueAction, UiSchemaItem } from '../../types';
 
 export const initialState: ISchemaState = {
   schema: { properties: {}, definitions: {} },
@@ -9,36 +9,91 @@ export const initialState: ISchemaState = {
   rootName: '/',
   saveSchemaUrl: '',
   selectedId: '',
+  selectedNodeId: '',
 };
 
 const schemaEditorSlice = createSlice({
   name: 'schemaEditor',
   initialState,
   reducers: {
-    addField(state, action) {
+    addRestriction(state, action) {
       const {
-        path, key, value,
+        path, value, key,
       } = action.payload;
-      const addToItem = state.uiSchema.find((item) => item.id === path);
-      if (addToItem) {
-        const itemToAdd = { key, value };
-        if (addToItem.fields) {
-          addToItem.fields.push(itemToAdd);
-        } else {
-          addToItem.fields = [itemToAdd];
+
+      const addToItem = getUiSchemaItem(state.uiSchema, path);
+      const itemToAdd = { key, value };
+      if (addToItem.restrictions) {
+        while (addToItem.restrictions.findIndex((f) => f.key === itemToAdd.key) > -1) {
+          itemToAdd.key += 1;
         }
+        addToItem.restrictions.push(itemToAdd);
+      } else {
+        addToItem.restrictions = [itemToAdd];
       }
     },
+    addEnum(state, action) {
+      const {
+        path, value, oldValue,
+      } = action.payload;
+
+      const addToItem = getUiSchemaItem(state.uiSchema, path);
+      if (!addToItem.enum) {
+        addToItem.enum = [value];
+        return;
+      }
+      if (!oldValue) {
+        addToItem.enum.push(value);
+        return;
+      }
+      const index = addToItem.enum.indexOf(oldValue);
+      if (index >= -1) {
+        addToItem.enum[index] = value;
+      } else {
+        addToItem.enum.push(value);
+      }
+    },
+    addRootItem(state, action) {
+      const { name, location } = action.payload;
+      const path = `#/${location}/${name}`;
+      state.uiSchema.push(
+        {
+          id: path,
+          type: 'object',
+          displayName: name,
+        },
+      );
+      state.selectedId = path;
+      state.selectedNodeId = getDomFriendlyID(path);
+    },
     addProperty(state, action) {
+      const { path } = action.payload;
+      const addToItem = getUiSchemaItem(state.uiSchema, path);
+      const item: UiSchemaItem = {
+        id: `${path}/properties/name`,
+        displayName: 'name',
+        type: 'object',
+      };
+      if (addToItem.properties) {
+        while (addToItem.properties.findIndex((p) => p.id === item.id) > -1) {
+          item.id += 1;
+          item.displayName += 1;
+        }
+        addToItem.properties.push(item);
+      } else {
+        addToItem.properties = [item];
+      }
+    },
+    addRefProperty(state, action) {
       const {
         path, newKey, content,
       } = action.payload;
 
-      const addToItem = state.uiSchema.find((i) => i.id === path);
+      const addToItem = getUiSchemaItem(state.uiSchema, path);
       const item = content[0];
-      const propertyItem = {
+      const propertyItem: UiSchemaItem = {
         id: `${path}/properties/${newKey}`,
-        name: newKey,
+        displayName: newKey,
         $ref: item.id,
       };
 
@@ -54,111 +109,152 @@ const schemaEditorSlice = createSlice({
         }
       });
     },
-    addRootItem(state, action) {
-      const { itemsToAdd } = action.payload;
-      const rootItem = itemsToAdd[0];
-
-      const baseItem = {
-        id: '#/properties/melding',
-        $ref: rootItem.id,
-      };
-      state.uiSchema.push(baseItem);
-
-      itemsToAdd.forEach((item: UiSchemaItem) => {
-        state.uiSchema.push(item);
-      });
-
-      state.rootName = rootItem.id;
-    },
     deleteField(state, action) {
       const { path, key } = action.payload;
-      const removeFromItem = state.uiSchema.find((item) => item.id === path);
-      if (removeFromItem) {
-        const removeIndex = removeFromItem.fields?.findIndex((v: any) => v.key === key) ?? -1;
-        const newValue = removeFromItem
-          .fields?.slice(0, removeIndex).concat(removeFromItem.fields.slice(removeIndex + 1));
-        removeFromItem.fields = newValue;
+      const removeFromItem = getUiSchemaItem(state.uiSchema, path);
+      const removeIndex = removeFromItem.restrictions?.findIndex((v: any) => v.key === key) ?? -1;
+      if (removeIndex >= 0) {
+        removeFromItem.restrictions?.splice(removeIndex, 1);
+      }
+    },
+    deleteEnum(state, action) {
+      const { path, value } = action.payload;
+      const removeFromItem = getUiSchemaItem(state.uiSchema, path);
+      const removeIndex = removeFromItem.enum?.findIndex((v: any) => v === value) ?? -1;
+      if (removeIndex >= 0) {
+        removeFromItem.enum?.splice(removeIndex, 1);
       }
     },
     deleteProperty(state, action) {
-      const { path } = action.payload;
-      const [rootPath, propertyName] = path.split('/properties/');
-      if (rootPath && propertyName) {
-        const removeFromItem = state.uiSchema.find((item) => item.id === rootPath);
+      const path: string = action.payload.path;
+      if (state.selectedId === path) {
+        state.selectedId = undefined;
+      }
+      // eslint-disable-next-line no-useless-escape
+      if (path.match('[^#]\/properties')) {
+        // find parent of item to delete property.
+        const index = path.lastIndexOf('/properties/');
+        const parentPath = path.substring(0, index);
+        const propertyName = path.substring(index + 12);
+        const removeFromItem = getUiSchemaItem(state.uiSchema, parentPath);
         if (removeFromItem) {
           const removeIndex = removeFromItem
-            .properties?.findIndex((property: any) => property.name === propertyName) ?? -1;
-          const newProperties = removeFromItem
-            .properties?.slice(0, removeIndex).concat(removeFromItem.properties.slice(removeIndex + 1));
-          removeFromItem.properties = newProperties;
+            .properties?.findIndex((property) => property.displayName === propertyName) ?? -1;
+          if (removeIndex >= 0) {
+            removeFromItem.properties?.splice(removeIndex, 1);
+          }
         }
+        return;
+      }
+      // delete root property / definition
+      // if this is a definition, we need to find all references to this definition, and remove them (?)
+      const rootIndex = state.uiSchema.findIndex((e: UiSchemaItem) => e.id === path);
+      if (rootIndex >= 0) {
+        state.uiSchema.splice(rootIndex, 1);
       }
     },
-    setFieldValue(state, action) {
+    setRestriction(state, action) {
       const {
         path, value, key,
       }: ISetValueAction = action.payload;
       // eslint-disable-next-line no-nested-ternary
-      const itemType = path.includes('/properties/') ? ItemType.Property : (key ? ItemType.Value : ItemType.Ref);
-      const schemaItem = getUiSchemaItem(state.uiSchema, path, itemType);
-      if (schemaItem.fields) {
-        const fieldItem = schemaItem.fields.find((field) => field.key === key);
-        if (fieldItem) {
-          fieldItem.value = value;
-        }
+      const schemaItem = getUiSchemaItem(state.uiSchema, path);
+      if (!schemaItem.restrictions) {
+        schemaItem.restrictions = [];
       }
+
+      const fieldItem = schemaItem.restrictions.find((field) => field.key === key);
+      if (fieldItem) {
+        fieldItem.value = value;
+      } else if (key) {
+        schemaItem.restrictions.push({ key, value });
+      }
+    },
+    setItems(state, action) {
+      const {
+        path, items,
+      } = action.payload;
+      // eslint-disable-next-line no-nested-ternary
+      const schemaItem = getUiSchemaItem(state.uiSchema, path);
+      schemaItem.items = items;
     },
     setRef(state, action) {
       const {
         path, ref,
       }: ISetRefAction = action.payload;
-      const schemaItem = getUiSchemaItem(state.uiSchema, path, ItemType.Property);
+      const schemaItem = getUiSchemaItem(state.uiSchema, path);
       if (schemaItem) {
         schemaItem.$ref = ref;
+        schemaItem.type = undefined;
       }
     },
     setKey(state, action) {
       const {
         path, oldKey, newKey,
       } = action.payload;
-      const itemType = path.includes('/properties/') ? ItemType.Property : ItemType.Value;
-      const schemaItem = getUiSchemaItem(state.uiSchema, path, itemType);
-      if (schemaItem.fields) {
-        const fieldItem = schemaItem.fields.find((field) => field.key === oldKey);
+      const schemaItem = getUiSchemaItem(state.uiSchema, path);
+      if (schemaItem.restrictions) {
+        const fieldItem = schemaItem.restrictions.find((field) => field.key === oldKey);
         if (fieldItem) {
           fieldItem.key = newKey;
         }
       }
     },
+    setType(state, action) {
+      const { path, value }: ISetTypeAction = action.payload;
+      const schemaItem = getUiSchemaItem(state.uiSchema, path);
+      schemaItem.$ref = undefined;
+      schemaItem.type = value;
+    },
+    setTitle(state, action) {
+      const { path, title } = action.payload;
+      const schemaItem = getUiSchemaItem(state.uiSchema, path);
+      schemaItem.title = title;
+    },
+    setDescription(state, action) {
+      const { path, description } = action.payload;
+      const schemaItem = getUiSchemaItem(state.uiSchema, path);
+      schemaItem.description = description;
+    },
+    setRequired(state, action) {
+      const {
+        path, key, required,
+      } = action.payload;
+      // need to find parent object
+      const parent = getParentPath(path);
+      if (parent != null) {
+        const schemaItem = getUiSchemaItem(state.uiSchema, parent);
+        if (schemaItem.required === undefined) {
+          schemaItem.required = [];
+        }
+        if (!required) {
+          schemaItem.required = schemaItem.required.filter((k) => k !== key);
+        } else if (!schemaItem.required.includes(key)) {
+          schemaItem.required.push(key);
+        }
+      }
+    },
     setJsonSchema(state, action) {
       const { schema } = action.payload;
+      state.selectedId = undefined;
+      state.selectedNodeId = undefined;
       state.schema = schema;
     },
     setPropertyName(state, action) {
-      const { path, name } = action.payload;
-      if (path.includes('/properties')) {
-        // #/definitions/Foretak/properties/organisasjonsnummerForetak
-        const [rootPath, propertyName] = path.split('/properties/');
-        if (rootPath && propertyName) {
-          const rootItem = state.uiSchema.find((item) => item.id === rootPath);
-          const propertyItem = rootItem?.properties?.find((property: any) => property.name === propertyName);
-          if (propertyItem) {
-            propertyItem.name = name;
-            propertyItem.id = `${rootPath}/properties/${name}`;
-            state.selectedId = propertyItem.id;
-          }
-        }
-        // also update definition item ?
-      } else if (path.includes('/definitions')) {
-        // just update definition id/name
-        const propertyName = path.split('/definitions/')[1];
-        if (propertyName) {
-          const rootItem = state.uiSchema.find((item) => item.id === path);
-          if (rootItem) {
-            rootItem.name = name;
-            rootItem.id = `#/definitions/${propertyName}`;
-            state.selectedId = rootItem.id;
-          }
+      const {
+        path, name, navigate,
+      } = action.payload;
+      if (!name || name.length === 0) {
+        return;
+      }
+      const item = getUiSchemaItem(state.uiSchema, path);
+      if (item) {
+        item.displayName = name;
+        const arr = item.id.split('/');
+        arr[arr.length - 1] = name;
+        item.id = arr.join('/');
+        if (navigate) {
+          state.selectedId = item.id;
         }
       }
     },
@@ -167,8 +263,11 @@ const schemaEditorSlice = createSlice({
       state.rootName = rootName;
     },
     setSelectedId(state, action) {
-      const { id } = action.payload;
+      const {
+        id, navigate,
+      } = action.payload;
       state.selectedId = id;
+      state.selectedNodeId = navigate ? getDomFriendlyID(id) : undefined;
     },
     setSaveSchemaUrl(state, action) {
       state.saveSchemaUrl = action.payload.saveUrl;
@@ -177,9 +276,9 @@ const schemaEditorSlice = createSlice({
       const { rootElementPath } = action.payload; // state.schema.properties.melding.$ref;
       let uiSchema: any[] = [];
 
-      const uiSchemaProps = buildUISchema(state.schema.properties, '#/properties');
+      const uiSchemaProps = buildUISchema(state.schema.properties, '#/properties', true);
       uiSchema = uiSchema.concat(uiSchemaProps);
-      const uiSchemaDefs = buildUISchema(state.schema.definitions, '#/definitions');
+      const uiSchemaDefs = buildUISchema(state.schema.definitions, '#/definitions', true);
       uiSchema = uiSchema.concat(uiSchemaDefs);
 
       state.uiSchema = uiSchema;
@@ -187,7 +286,10 @@ const schemaEditorSlice = createSlice({
     },
     updateJsonSchema(state, action) {
       const { onSaveSchema } = action.payload;
-      const updatedSchema = buildJsonSchema(state.uiSchema);
+      const updatedSchema: ISchema = buildJsonSchema(state.uiSchema);
+      if (!updatedSchema.definitions) {
+        updatedSchema.definitions = {};
+      }
       state.schema = updatedSchema;
       if (onSaveSchema) {
         onSaveSchema(updatedSchema);
@@ -197,14 +299,18 @@ const schemaEditorSlice = createSlice({
 });
 
 export const {
-  addField,
-  addProperty,
+  addRestriction,
+  addEnum,
   addRootItem,
+  addProperty,
+  addRefProperty,
   deleteField,
+  deleteEnum,
   deleteProperty,
-  setFieldValue,
+  setRestriction,
   setKey,
   setRef,
+  setItems,
   setJsonSchema,
   setPropertyName,
   setRootName,
@@ -212,6 +318,10 @@ export const {
   setUiSchema,
   updateJsonSchema,
   setSelectedId,
+  setTitle,
+  setDescription,
+  setType,
+  setRequired,
 } = schemaEditorSlice.actions;
 
 export default schemaEditorSlice.reducer;

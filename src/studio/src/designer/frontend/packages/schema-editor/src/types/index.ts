@@ -1,20 +1,22 @@
-export enum ItemType {
-  Property,
-  Value,
-  Ref,
-}
 export interface ISchemaState {
   schema: ISchema;
   uiSchema: UiSchemaItem[];
   rootName: string;
   saveSchemaUrl: string;
   selectedId?: string;
+  selectedNodeId?: string;
 }
-
+export interface ILanguage {
+  [key: string]: string;
+}
 export interface ISetValueAction {
   path: string,
   value: any,
   key?: string,
+}
+export interface ISetTypeAction {
+  path: string;
+  value: string;
 }
 export interface ISetRefAction {
   path: string,
@@ -25,15 +27,23 @@ export type Field = {
   value: any;
 }
 
-export type UiSchemaItem = {
+export interface UiSchemaItem {
   id: string;
+  type?: string;
   $ref?: string;
-  fields?: Field[];
+  restrictions?: Field[];
   properties?: UiSchemaItem[];
   value?: any;
-  name?: string;
+  displayName: string;
+  required?: string[];
+  title?: string;
+  description?: string;
+  items?: {type?: string, $ref?: string};
+  enum?: string[];
 }
+
 export interface ISchema {
-  properties: { [key: string]: UiSchemaItem };
-  definitions: { [key: string]: UiSchemaItem };
+  properties: { [key: string]: {[key: string]: any} };
+  definitions: { [key: string]: {[key: string]: any} };
+  $schema?: string;
 }

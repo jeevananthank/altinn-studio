@@ -3,8 +3,7 @@ import { ILayoutComponent, ILayoutGroup, ISelectionComponentProps } from 'src/fe
 import { IDataModelBindings, IComponentValidations, ITextResource, ITextResourceBindings, IOption, IOptions, IValidations } from 'src/types';
 
 export const isSimpleComponent = (dataModelBindings: any, type: string): boolean => {
-  const simpleBinding = dataModelBindings.simpleBinding;
-  return simpleBinding && type !== 'FileUpload' && type !== 'Datepicker';
+  return !!dataModelBindings?.simpleBinding && type !== 'FileUpload' && type !== 'Datepicker';
 };
 
 export const componentHasValidationMessages = (componentValidations) => {
@@ -60,6 +59,7 @@ export const getDisplayFormDataForComponent = (
   component: ILayoutComponent,
   textResources: ITextResource[],
   options: IOptions,
+  multiChoice?: boolean,
 ) => {
   if (component.dataModelBindings.simpleBinding) {
     return getDisplayFormData(
@@ -68,6 +68,7 @@ export const getDisplayFormDataForComponent = (
       formData,
       options,
       textResources,
+      multiChoice,
     );
   }
 
@@ -85,6 +86,7 @@ export const getDisplayFormData = (
   formData: any,
   options: IOptions,
   textResources: ITextResource[],
+  asObject?: boolean,
 ) => {
   const formDataValue = formData[dataModelBinding] || '';
   if (formDataValue) {
@@ -104,6 +106,18 @@ export const getDisplayFormData = (
       let label: string = '';
       const data: string = formData[dataModelBinding];
       const split = data?.split(',');
+      if (asObject) {
+        const displayFormData = {};
+        split?.forEach((value: string) => {
+          const optionsForComponent = selectionComponent?.optionsId ? options[selectionComponent.optionsId]
+            : selectionComponent.options;
+          const textKey = optionsForComponent?.find((option: IOption) => option.value === value)?.label || '';
+          displayFormData[value] = getTextResourceByKey(textKey, textResources) || '';
+        });
+
+        return displayFormData;
+      }
+
       split?.forEach((value: string) => {
         if (selectionComponent?.options) {
           label += getTextResourceByKey(selectionComponent.options.find((option: IOption) => option.value === value)?.label, textResources) || '';

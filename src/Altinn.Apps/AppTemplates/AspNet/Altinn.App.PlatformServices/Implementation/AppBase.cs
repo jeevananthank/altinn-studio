@@ -121,7 +121,22 @@ namespace Altinn.App.Services.Implementation
         public abstract Task RunTaskValidation(Instance instance, string taskId, ModelStateDictionary validationResults);
 
         /// <inheritdoc />
-        public abstract Task<bool> RunCalculation(object data);
+        public virtual Task<bool> RunCalculation(object data)
+        {
+            return Task.FromResult(false);
+        }
+
+        /// <inheritdoc />
+        public virtual Task<bool> RunProcessDataRead(Instance instance, Guid? dataId, object data)
+        {
+            throw new NotImplementedException("RunProcessDataRead not implemented in app");
+        }
+
+        /// <inheritdoc />
+        public virtual Task<bool> RunProcessDataWrite(Instance instance, Guid? dataId, object data)
+        {
+            throw new NotImplementedException("RunProcessDataWrite not implemented in app");
+        }
 
         /// <inheritdoc />
         public abstract Task<InstantiationValidationResult> RunInstantiationValidation(Instance instance);
@@ -184,23 +199,13 @@ namespace Altinn.App.Services.Implementation
                     DataElement createdDataElement = await _dataService.InsertFormData(instance, dataType.Id, data, type);
                     instance.Data.Add(createdDataElement);
 
-                    Dictionary<string, string> updatedValues =
-                        DataHelper.GetUpdatedDataValues(_appMetadata.PresentationFields, instance.PresentationTexts, dataType.Id, data);
-
-                    if (updatedValues.Count > 0)
-                    {
-                        Instance updatedInstance = await _instanceService.UpdatePresentationTexts(
-                              int.Parse(instance.Id.Split("/")[0]),
-                              Guid.Parse(instance.Id.Split("/")[1]),
-                              new PresentationTexts { Texts = updatedValues });
-
-                        instance.PresentationTexts = updatedInstance.PresentationTexts;
-                    }
+                    await UpdatePresentationTextsOnInstance(instance, dataType.Id, data);
+                    await UpdateDataValuesOnInstance(instance, dataType.Id, data);
 
                     _logger.LogInformation($"Created data element: {createdDataElement.Id}");
                 }
             }
-        }
+        }        
 
         /// <inheritdoc />
         public async Task<bool> CanEndProcessTask(string taskId, Instance instance, List<ValidationIssue> validationIssues)
@@ -311,6 +316,44 @@ namespace Altinn.App.Services.Implementation
             Receiver receiver = new Receiver { Identifier = identifier };
 
             return new List<Receiver> { receiver };
+        }
+
+        private async Task UpdatePresentationTextsOnInstance(Instance instance, string dataType, dynamic data)
+        {
+            var updatedValues = DataHelper.GetUpdatedDataValues(
+                _appMetadata.PresentationFields,
+                instance.PresentationTexts,
+                dataType,
+                data);
+
+            if (updatedValues.Count > 0)
+            {
+                var updatedInstance = await _instanceService.UpdatePresentationTexts(
+                      int.Parse(instance.Id.Split("/")[0]),
+                      Guid.Parse(instance.Id.Split("/")[1]),
+                      new PresentationTexts { Texts = updatedValues });
+
+                instance.PresentationTexts = updatedInstance.PresentationTexts;
+            }
+        }
+
+        private async Task UpdateDataValuesOnInstance(Instance instance, string dataType, object data)
+        {
+            var updatedValues = DataHelper.GetUpdatedDataValues(
+                _appMetadata.DataFields,
+                instance.DataValues,
+                dataType,
+                data);
+
+            if (updatedValues.Count > 0)
+            {
+                var updatedInstance = await _instanceService.UpdateDataValues(
+                    int.Parse(instance.Id.Split("/")[0]),
+                    Guid.Parse(instance.Id.Split("/")[1]),
+                    new DataValues { Values = updatedValues });
+
+                instance.DataValues = updatedInstance.DataValues;
+            }
         }
 
         private async Task GenerateAndStoreReceiptPDF(Instance instance, string taskId, DataElement dataElement, Type dataElementModelType)
@@ -470,7 +513,10 @@ namespace Altinn.App.Services.Implementation
                     Dictionary<string, string> options = new Dictionary<string, string>();
                     foreach (AppOption item in appOptions.Options)
                     {
-                        options.Add(item.Label, item.Value);
+                        if (!options.ContainsKey(item.Label))
+                        {
+                            options.Add(item.Label, item.Value);
+                        }
                     }
 
                     dictionary.Add(optionsId, options);

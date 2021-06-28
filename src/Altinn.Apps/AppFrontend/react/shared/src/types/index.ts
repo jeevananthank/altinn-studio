@@ -13,6 +13,11 @@ export interface IApplication {
   org: string;
   partyTypesAllowed: IPartyTypesAllowed;
   title: ITitle;
+  onEntry?: IOnEntry;
+}
+
+export interface IOnEntry {
+  show: 'new-instance' | 'startpage' | string;
 }
 
 export interface IAttachment {
@@ -24,14 +29,16 @@ export interface IAttachment {
 
 export interface IData {
   id: string;
+  instanceGuid: string;
   dataType: string;
-  filename: string;
+  filename?: string;
   contentType: string;
   blobStoragePath: string;
-  selfLinks: ISelfLinks;
+  selfLinks?: ISelfLinks;
   size: number;
   locked: boolean;
   refs: string[];
+  isRead?: boolean;
   created: Date;
   createdBy: string;
   lastChanged: Date;

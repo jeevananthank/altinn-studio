@@ -1,10 +1,9 @@
 using System.Threading.Tasks;
-using Altinn.App.Common.Helpers;
+
 using Altinn.App.Services.Configuration;
 using Altinn.App.Services.Helpers;
 using Altinn.App.Services.Interface;
 using Altinn.App.Services.Models;
-using Altinn.Platform.Register.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
@@ -18,11 +17,10 @@ namespace Altinn.App.Api.Controllers
     /// </summary>
     public class AuthorizationController : Controller
     {
-        private readonly IAuthorization _authroization;
+        private readonly IAuthorization _authorization;
         private readonly ILogger _logger;
         private readonly UserHelper _userHelper;
         private readonly GeneralSettings _settings;
-        private readonly IRegister _registerService;
 
         /// <summary>
         /// Initializes a new instance of the <see cref="AuthorizationController"/> class
@@ -35,16 +33,16 @@ namespace Altinn.App.Api.Controllers
                 IOptions<GeneralSettings> settings)
         {
             _userHelper = new UserHelper(profileService, registerService, settings);
-            _authroization = authorization;
+            _authorization = authorization;
             _logger = logger;
             _settings = settings.Value;
-            _registerService = registerService;
         }
 
         /// <summary>
         /// Gets current party by reading cookie value and validating.
         /// </summary>
         /// <returns>Party id for selected party. If invalid, partyId for logged in user is returned.</returns>
+        [ResponseCache(Duration = 0, Location = ResponseCacheLocation.None, NoStore = true)]
         [HttpGet("{org}/{app}/api/authorization/parties/current")]
         public async Task<ActionResult> GetCurrentParty(bool returnPartyObject = false)
         {
@@ -54,7 +52,7 @@ namespace Altinn.App.Api.Controllers
             // If selected party is different than party for user self need to verify
             if (userContext.UserParty == null || userContext.PartyId != userContext.UserParty.PartyId)
             {
-                bool? isValid = await _authroization.ValidateSelectedParty(userId, userContext.PartyId);
+                bool? isValid = await _authorization.ValidateSelectedParty(userId, userContext.PartyId);
 
                 if (isValid == true)
                 {
@@ -118,7 +116,7 @@ namespace Altinn.App.Api.Controllers
                 return BadRequest("Both userId and partyId must be provided.");
             }
 
-            bool? result = await _authroization.ValidateSelectedParty(userId, partyId);
+            bool? result = await _authorization.ValidateSelectedParty(userId, partyId);
 
             if (result != null)
             {

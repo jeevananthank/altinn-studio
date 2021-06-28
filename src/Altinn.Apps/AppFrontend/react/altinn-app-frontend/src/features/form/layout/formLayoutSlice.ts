@@ -1,5 +1,4 @@
 /* eslint-disable max-len */
-/* eslint-disable no-param-reassign */
 import { createAction, createSlice, PayloadAction } from '@reduxjs/toolkit';
 import { ILayoutSets, IUiConfig } from 'src/types';
 import { ILayouts } from './index';
@@ -56,6 +55,7 @@ const formLayoutSlice = createSlice({
     fetchLayoutSettingsFulfilled: (state, action: PayloadAction<LayoutTypes.IFetchLayoutSettingsFulfilled>) => {
       const { settings } = action.payload;
       if (settings && settings.pages) {
+        state.uiConfig.hideCloseButton = settings?.pages?.hideCloseButton;
         state.uiConfig.pageTriggers = settings.pages.triggers;
         if (settings.pages.order) {
           state.uiConfig.layoutOrder = settings.pages.order;

@@ -31,6 +31,7 @@ namespace Altinn.App.Api.Controllers
     /// The data controller handles creation, update, validation and calculation of data elements.
     /// </summary>
     [AutoValidateAntiforgeryTokenIfAuthCookie]
+    [ResponseCache(Duration = 0, Location = ResponseCacheLocation.None, NoStore = true)]
     [Route("{org}/{app}/instances/{instanceOwnerPartyId:int}/{instanceGuid:guid}/data")]
     public class DataController : ControllerBase
     {
@@ -195,7 +196,7 @@ namespace Altinn.App.Api.Controllers
                 }
                 else if ((bool)appLogic)
                 {
-                    return await GetFormData(org, app, instanceOwnerPartyId, instanceGuid, dataGuid, dataType);
+                    return await GetFormData(org, app, instanceOwnerPartyId, instanceGuid, dataGuid, dataType, instance);
                 }
 
                 return await GetBinaryData(org, app, instanceOwnerPartyId, instanceGuid, dataGuid, dataElement);
@@ -401,20 +402,8 @@ namespace Altinn.App.Api.Controllers
             // send events to trigger application business logic
             await _altinnApp.RunDataCreation(instance, appModel);
 
-            Dictionary<string, string> updatedValues =
-                DataHelper.GetUpdatedDataValues(
-                    _appResourcesService.GetApplication().PresentationFields,
-                    instance.PresentationTexts,
-                    dataType,
-                    appModel);
-
-            if (updatedValues.Count > 0)
-            {
-                await _instanceService.UpdatePresentationTexts(
-                     int.Parse(instance.InstanceOwner.PartyId),
-                     Guid.Parse(instance.Id.Split("/")[1]),
-                     new PresentationTexts { Texts = updatedValues });
-            }
+            await UpdatePresentationTextsOnInstance(instance, dataType, appModel);
+            await UpdateDataValuesOnInstance(instance, dataType, appModel);
 
             int instanceOwnerPartyId = int.Parse(instance.InstanceOwner.PartyId);
 
@@ -497,7 +486,8 @@ namespace Altinn.App.Api.Controllers
         int instanceOwnerId,
         Guid instanceGuid,
         Guid dataGuid,
-        string dataType)
+        string dataType,
+        Instance instance)
         {
             string appModelclassRef = _appResourcesService.GetClassRefForLogicDataType(dataType);
 
@@ -515,8 +505,15 @@ namespace Altinn.App.Api.Controllers
                 return BadRequest($"Did not find form data for data element {dataGuid}");
             }
 
-            // Trigger application business logic
-            await _altinnApp.RunCalculation(appModel);
+            try
+            {
+                await _altinnApp.RunProcessDataRead(instance, dataGuid, appModel);
+            }
+            catch (NotImplementedException)
+            {
+                // Trigger application business logic the old way. DEPRICATED
+                await _altinnApp.RunCalculation(appModel);
+            }
 
             string userOrgClaim = User.GetOrg();
             if (userOrgClaim == null || !org.Equals(userOrgClaim, StringComparison.InvariantCultureIgnoreCase))
@@ -557,23 +554,19 @@ namespace Altinn.App.Api.Controllers
 
             string serviceModelJsonString = JsonSerializer.Serialize(serviceModel);
 
-            // Trigger application business logic
-            bool changedByCalculation = await _altinnApp.RunCalculation(serviceModel);
-
-            Dictionary<string, string> updatedValues =
-                DataHelper.GetUpdatedDataValues(
-                    _appResourcesService.GetApplication().PresentationFields,
-                    instance.PresentationTexts, 
-                    dataType, 
-                    serviceModel);
-
-            if (updatedValues.Count > 0)
+            bool changedByCalculation = false;
+            try
             {
-                await _instanceService.UpdatePresentationTexts(
-                    int.Parse(instance.Id.Split("/")[0]),
-                    Guid.Parse(instance.Id.Split("/")[1]),
-                    new PresentationTexts { Texts = updatedValues });
+                changedByCalculation = await _altinnApp.RunProcessDataWrite(instance, dataGuid, serviceModel);
             }
+            catch (NotImplementedException)
+            {
+                // Trigger application business logic the old way. DEPRICATED
+                 changedByCalculation = await _altinnApp.RunCalculation(serviceModel);
+            }
+
+            await UpdatePresentationTextsOnInstance(instance, dataType, serviceModel);
+            await UpdateDataValuesOnInstance(instance, dataType, serviceModel);
 
             // Save Formdata to database
             DataElement updatedDataElement = await _dataService.UpdateData(
@@ -607,6 +600,40 @@ namespace Altinn.App.Api.Controllers
             }
 
             return Created(dataUrl, updatedDataElement);
+        }
+
+        private async Task UpdatePresentationTextsOnInstance(Instance instance, string dataType, object serviceModel)
+        {
+            var updatedValues = DataHelper.GetUpdatedDataValues(
+                _appResourcesService.GetApplication().PresentationFields,
+                instance.PresentationTexts,
+                dataType,
+                serviceModel);
+
+            if (updatedValues.Count > 0)
+            {
+                await _instanceService.UpdatePresentationTexts(
+                    int.Parse(instance.Id.Split("/")[0]),
+                    Guid.Parse(instance.Id.Split("/")[1]),
+                    new PresentationTexts { Texts = updatedValues });
+            }
+        }
+
+        private async Task UpdateDataValuesOnInstance(Instance instance, string dataType, object serviceModel)
+        {
+            var updatedValues = DataHelper.GetUpdatedDataValues(
+                _appResourcesService.GetApplication().DataFields,
+                instance.DataValues,
+                dataType,
+                serviceModel);
+
+            if (updatedValues.Count > 0)
+            {
+                await _instanceService.UpdateDataValues(
+                    int.Parse(instance.Id.Split("/")[0]),
+                    Guid.Parse(instance.Id.Split("/")[1]),
+                    new DataValues { Values = updatedValues });
+            }
         }
 
         private ActionResult HandlePlatformHttpException(PlatformHttpException e, string defaultMessage)
